@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nostr Profile</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back-link">← Back to Profiles</a>
+    
+    <div class="profile-detail">
+      <div class="profile-header">
+        <% if (content.picture) { %>
+          <img src="<%= content.picture %>" alt="Profile" class="profile-image-large">
+        <% } else { %>
+          <div class="profile-image-placeholder large"></div>
+        <% } %>
+        
+        <div class="profile-title">
+          <h1><%= content.display_name || content.name || 'Unknown' %></h1>
+          <p class="pubkey-full"><%= profile.pubkey %></p>
+        </div>
+      </div>
+      
+      <% if (content.about) { %>
+        <div class="profile-about">
+          <h2>About</h2>
+          <p><%= content.about %></p>
+        </div>
+      <% } %>
+      
+      <div class="profile-metadata">
+        <h2>Profile Data</h2>
+        <pre><%= JSON.stringify(profile, null, 2) %></pre>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

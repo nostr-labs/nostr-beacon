@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nostr Profiles</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Recent Nostr Profiles</h1>
+    <div class="profiles-list">
+      <% profiles.forEach(profile => { %>
+        <% const content = typeof profile.content === 'string' ? parseContent(profile) : {}; %>
+        <a href="/profile/<%= profile.pubkey %>" class="profile-card">
+          <div class="profile-image">
+            <% if (content.picture) { %>
+              <img src="<%= content.picture %>" alt="Profile">
+            <% } else { %>
+              <div class="profile-image-placeholder"></div>
+            <% } %>
+          </div>
+          <div class="profile-info">
+            <h2><%= content.display_name || content.name || profile.name || profile.displayName || 'Unknown' %></h2>
+            <p class="pubkey"><%= profile.pubkey.substring(0, 10) %>...</p>
+            <% if (content.about) { %>
+              <p class="about"><%= content.about.substring(0, 100) %><%= content.about.length > 100 ? '...' : '' %></p>
+            <% } %>
+          </div>
+        </a>
+      <% }); %>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "nostr-beacon",
+  "version": "0.0.1",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "fs": "^0.0.1-security",
+    "mongodb": "^5.9.2",
+    "nostr-tools": "^1.16.1",
+    "ws": "^8.18.1"
+  }
+}

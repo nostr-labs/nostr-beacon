@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="100" cy="100" r="100" fill="#E0E0E0"/>
+  
+  <!-- User Silhouette -->
+  <circle cx="100" cy="75" r="35" fill="#AAAAAA"/>
+  <path d="M160,175 C160,130 130,110 100,110 C70,110 40,130 40,175 Z" fill="#AAAAAA"/>
+</svg>

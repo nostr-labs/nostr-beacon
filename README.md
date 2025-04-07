@@ -1,0 +1,2 @@
+# nostr-beacon
+nostr beacon

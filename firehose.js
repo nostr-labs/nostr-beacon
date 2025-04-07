@@ -8,7 +8,8 @@ const config = {
   storage: process.env.STORAGE_TYPE || 'file', // 'file' or 'mongodb'
   mongoUrl: process.env.MONGO_URL || 'mongodb://localhost:27017',
   mongoDb: process.env.MONGO_DB || 'nostr',
-  mongoCollection: process.env.MONGO_COLLECTION || 'beacon'
+  mongoCollection: process.env.MONGO_COLLECTION || 'beacon',
+  relays: process.env.RELAYS ? process.env.RELAYS.split(',') : ['wss://relay.damus.io', 'wss://nos.lol']
 };
 
 // MongoDB setup
@@ -65,16 +66,13 @@ async function saveProfile (event) {
   }
 }
 
-// Initialize and connect to services
-(async function init () {
-  await connectToMongo();
-
-  const relayUrl = 'wss://relay.damus.io';
+// Function to connect to a single relay
+function connectToRelay (relayUrl) {
   const ws = new WebSocket(relayUrl);
 
   ws.on('open', () => {
     console.log(`Connected to Nostr relay: ${relayUrl}`);
-    const req = ["REQ", "profile-firehose", { kinds: [0] }];
+    const req = ["REQ", `profile-firehose-${relayUrl}`, { kinds: [0] }];
     ws.send(JSON.stringify(req));
   });
 
@@ -85,18 +83,43 @@ async function saveProfile (event) {
         saveProfile(msg[2]);
       }
     } catch (e) {
-      console.error('Error parsing message:', e);
+      console.error(`Error parsing message from ${relayUrl}:`, e);
     }
   });
 
   ws.on('error', (error) => {
-    console.error('WebSocket error:', error);
+    console.error(`WebSocket error on ${relayUrl}:`, error);
   });
+
+  ws.on('close', () => {
+    console.log(`Disconnected from ${relayUrl}, attempting to reconnect in 5 seconds...`);
+    setTimeout(() => connectToRelay(relayUrl), 5000);
+  });
+
+  return ws;
+}
+
+// Initialize and connect to services
+(async function init () {
+  await connectToMongo();
+
+  // Connect to all configured relays
+  const connections = config.relays.map(relay => connectToRelay(relay));
+
+  console.log(`Connected to ${connections.length} relays: ${config.relays.join(', ')}`);
 
   // Handle graceful shutdown
   process.on('SIGINT', async () => {
     console.log('Shutting down...');
     if (mongoClient) await mongoClient.close();
+
+    // Close all websocket connections
+    connections.forEach(ws => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    });
+
     process.exit(0);
   });
 })();

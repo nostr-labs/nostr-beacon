@@ -535,6 +535,7 @@ async function getProfile (pubkey) {
             <div class="did-section">
               <pre>${JSON.stringify(generateDidDocument(profile.pubkey), null, 2)}</pre>
               <a href="/api/did/${profile.pubkey}" target="_blank" class="api-link">View as JSON API endpoint</a>
+              <a href="/.well-known/did/nostr/${profile.pubkey}.json" target="_blank" class="api-link">View as standardized DID document</a>
             </div>
           </div>
           
@@ -571,6 +572,22 @@ async function getProfile (pubkey) {
     if (!didDocument) {
       return res.status(404).json({ error: 'Could not generate DID document' });
     }
+
+    res.json(didDocument);
+  });
+
+  // Standard DID Document endpoint according to DID specification
+  app.get('/.well-known/did/nostr/:pubkey.json', async (req, res) => {
+    const pubkey = req.params.pubkey;
+    const didDocument = generateDidDocument(pubkey);
+
+    if (!didDocument) {
+      return res.status(404).json({ error: 'Could not generate DID document' });
+    }
+
+    // Set appropriate content type and cache headers
+    res.setHeader('Content-Type', 'application/did+json');
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
 
     res.json(didDocument);
   });

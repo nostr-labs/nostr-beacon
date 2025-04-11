@@ -110,6 +110,11 @@ async function saveProfile (event) {
   // Add timestamp for sorting by recency
   event.updated_at = new Date();
 
+  // Add created_at if it doesn't exist
+  if (!event.created_at) {
+    event.created_at = Math.floor(Date.now() / 1000); // Unix timestamp format
+  }
+
   if (config.storage === 'file') {
     // Ensure data directory exists
     const dataDir = path.join(__dirname, 'data');
@@ -157,7 +162,7 @@ async function getRecentProfiles (limit = 50) {
 
           profiles.push({
             ...data,
-            updated_at: stats.mtime
+            updated_at: data.updated_at || stats.mtime // Use existing updated_at or fallback to file mtime
           });
         }
       }
@@ -173,11 +178,29 @@ async function getRecentProfiles (limit = 50) {
   }
   else if (config.storage === 'mongodb') {
     try {
-      return await beaconCollection
+      // First get all profiles without sorting
+      const profiles = await beaconCollection
         .find({})
-        .sort({ updated_at: -1 })
-        .limit(limit)
+        .limit(limit * 2) // Get more than needed to account for sorting after fixing timestamps
         .toArray();
+
+      // Ensure all profiles have an updated_at field
+      for (const profile of profiles) {
+        if (!profile.updated_at) {
+          // If no updated_at, create one based on created_at or current time
+          profile.updated_at = profile.created_at ?
+            new Date(profile.created_at * 1000) :
+            new Date();
+        } else if (typeof profile.updated_at === 'string') {
+          // Convert string timestamps to Date objects
+          profile.updated_at = new Date(profile.updated_at);
+        }
+      }
+
+      // Now sort by updated_at in memory
+      return profiles
+        .sort((a, b) => b.updated_at - a.updated_at)
+        .slice(0, limit);
     } catch (error) {
       console.error('Error fetching profiles from MongoDB:', error);
       return [];
@@ -193,7 +216,15 @@ async function getProfile (pubkey) {
     const filePath = path.join(__dirname, 'data', `${pubkey}.json`);
     if (fs.existsSync(filePath)) {
       try {
-        return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        const profile = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        // Ensure profile has updated_at field
+        if (!profile.updated_at) {
+          const stats = fs.statSync(filePath);
+          profile.updated_at = profile.created_at ?
+            new Date(profile.created_at * 1000) :
+            stats.mtime;
+        }
+        return profile;
       } catch (error) {
         console.error(`Error reading profile for ${pubkey}:`, error);
         return null;
@@ -203,7 +234,14 @@ async function getProfile (pubkey) {
   }
   else if (config.storage === 'mongodb') {
     try {
-      return await beaconCollection.findOne({ pubkey });
+      const profile = await beaconCollection.findOne({ pubkey });
+      // Ensure profile has updated_at field
+      if (profile && !profile.updated_at) {
+        profile.updated_at = profile.created_at ?
+          new Date(profile.created_at * 1000) :
+          new Date();
+      }
+      return profile;
     } catch (error) {
       console.error(`Error fetching profile for ${pubkey} from MongoDB:`, error);
       return null;
@@ -328,17 +366,20 @@ async function getProfile (pubkey) {
       const bgColor = stringToColor(profile.pubkey);
 
       // Fix for Invalid Date issue
-      let updatedText = 'Recently updated';
+      let updatedText = '';
+      let createdText = '';
       try {
         if (profile.updated_at) {
           const updatedDate = new Date(profile.updated_at);
           if (!isNaN(updatedDate.getTime())) {
             updatedText = `Updated: ${updatedDate.toLocaleString()}`;
           }
-        } else if (profile.created_at) {
+        }
+
+        if (profile.created_at) {
           const createdDate = new Date(profile.created_at * 1000); // Convert Unix timestamp if needed
           if (!isNaN(createdDate.getTime())) {
-            updatedText = `Created: ${createdDate.toLocaleString()}`;
+            createdText = `Created: ${createdDate.toLocaleString()}`;
           }
         }
       } catch (e) {
@@ -358,7 +399,8 @@ async function getProfile (pubkey) {
                       <p class="profile-pubkey">${profile.pubkey.substring(0, 10)}...
                         <span class="did-indicator" title="Decentralized Identifier">DID</span>
                       </p>
-                      <p class="updated-at">${updatedText}</p>
+                      ${updatedText ? `<p class="updated-at">${updatedText}</p>` : ''}
+                      ${createdText ? `<p class="updated-at">${createdText}</p>` : ''}
                     </div>
                   </a>
                 </li>
@@ -395,11 +437,19 @@ async function getProfile (pubkey) {
 
     // Fix for date display
     let createdText = 'Unknown date';
+    let updatedText = 'Unknown date';
     try {
       if (profile.created_at) {
         const createdDate = new Date(profile.created_at * 1000); // Convert Unix timestamp
         if (!isNaN(createdDate.getTime())) {
           createdText = createdDate.toLocaleString();
+        }
+      }
+
+      if (profile.updated_at) {
+        const updatedDate = new Date(profile.updated_at);
+        if (!isNaN(updatedDate.getTime())) {
+          updatedText = updatedDate.toLocaleString();
         }
       }
     } catch (e) {
@@ -526,6 +576,7 @@ async function getProfile (pubkey) {
               ${website ? `<dt>Website</dt><dd><a href="${website}" target="_blank">${website}</a></dd>` : ''}
               ${nip05 ? `<dt>NIP-05</dt><dd>${nip05}</dd>` : ''}
               <dt>Created</dt><dd>${createdText}</dd>
+              <dt>Updated</dt><dd>${updatedText}</dd>
               <dt>Nostr DID</dt><dd>did:nostr:${profile.pubkey}</dd>
             </dl>
           </div>

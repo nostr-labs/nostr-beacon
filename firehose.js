@@ -80,7 +80,13 @@ function connectToRelay (relayUrl) {
     try {
       const msg = JSON.parse(data);
       if (msg[0] === 'EVENT' && msg[2]?.kind === 0) {
-        saveProfile(msg[2]);
+        const event = msg[2];
+        // Pretty print the event
+        console.log(`\nReceived event from ${relayUrl}:`);
+        console.log(JSON.stringify(event, null, 2));
+        console.log('-------------------------------------');
+
+        saveProfile(event);
       }
     } catch (e) {
       console.error(`Error parsing message from ${relayUrl}:`, e);

@@ -58,7 +58,7 @@ function generateDidDocument (pubkey) {
       {
         "id": `did:nostr:${pubkey}#key1`,
         "controller": `did:nostr:${pubkey}`,
-        "type": "SchnorrVerification2023"
+        "type": "SchnorrVerification2025"
       }
     ],
     "authentication": [

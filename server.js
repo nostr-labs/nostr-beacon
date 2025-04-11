@@ -45,10 +45,10 @@ function stringToColor (str) {
 }
 
 // Generate DID document for Nostr profile
-function generateDidDocument (pubkey) {
+function generateDidDocument (pubkey, profile) {
   if (!pubkey) return null;
 
-  return {
+  const didDoc = {
     "@context": [
       "https://www.w3.org/ns/did/v1",
       "https://w3id.org/nostr/context"
@@ -68,6 +68,31 @@ function generateDidDocument (pubkey) {
       "#key1"
     ]
   };
+
+  // Add Storage service if available in profile content
+  if (profile && profile.content) {
+    try {
+      const content = JSON.parse(profile.content);
+      if (content.storage || content.Storage) {
+        const storageInfo = content.storage || content.Storage;
+
+        // Initialize service array if it doesn't exist
+        if (!didDoc.service) {
+          didDoc.service = [];
+        }
+
+        didDoc.service.push({
+          "id": `did:nostr:${pubkey}#storage`,
+          "type": "Storage",
+          "serviceEndpoint": typeof storageInfo === 'string' ? storageInfo : JSON.stringify(storageInfo)
+        });
+      }
+    } catch (error) {
+      console.error(`Error parsing profile content for ${pubkey}:`, error);
+    }
+  }
+
+  return didDoc;
 }
 
 // MongoDB setup
@@ -584,7 +609,7 @@ async function getProfile (pubkey) {
           <div class="profile-section">
             <h2>DID Document</h2>
             <div class="did-section">
-              <pre>${JSON.stringify(generateDidDocument(profile.pubkey), null, 2)}</pre>
+              <pre>${JSON.stringify(generateDidDocument(profile.pubkey, profile), null, 2)}</pre>
               <a href="/api/did/${profile.pubkey}" target="_blank" class="api-link">View as JSON API endpoint</a>
               <a href="/.well-known/did/nostr/${profile.pubkey}.json" target="_blank" class="api-link">View as standardized DID document</a>
             </div>
@@ -618,7 +643,9 @@ async function getProfile (pubkey) {
   // DID Document API endpoint
   app.get('/api/did/:pubkey', async (req, res) => {
     const pubkey = req.params.pubkey;
-    const didDocument = generateDidDocument(pubkey);
+    // Fetch the profile first
+    const profile = await getProfile(pubkey);
+    const didDocument = generateDidDocument(pubkey, profile);
 
     if (!didDocument) {
       return res.status(404).json({ error: 'Could not generate DID document' });
@@ -630,7 +657,9 @@ async function getProfile (pubkey) {
   // Standard DID Document endpoint according to DID specification
   app.get('/.well-known/did/nostr/:pubkey.json', async (req, res) => {
     const pubkey = req.params.pubkey;
-    const didDocument = generateDidDocument(pubkey);
+    // Fetch the profile first
+    const profile = await getProfile(pubkey);
+    const didDocument = generateDidDocument(pubkey, profile);
 
     if (!didDocument) {
       return res.status(404).json({ error: 'Could not generate DID document' });
@@ -657,7 +686,7 @@ async function getProfile (pubkey) {
     // Add each profile's DID as a linked_did
     for (const profile of profiles) {
       if (profile.pubkey) {
-        const didDoc = generateDidDocument(profile.pubkey);
+        const didDoc = generateDidDocument(profile.pubkey, profile);
         if (didDoc) {
           didConfiguration.linked_dids.push(didDoc);
         }

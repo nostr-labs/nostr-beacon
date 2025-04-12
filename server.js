@@ -285,6 +285,135 @@ async function getProfile (pubkey) {
   // Serve static files
   app.use(express.static(path.join(__dirname, 'public')));
 
+  // Create a common CSS stylesheet for consistency
+  const stylesPath = path.join(__dirname, 'public', 'styles.css');
+  try {
+    const cssContent = `:root {
+  --color-bg: #f8f9fb;
+  --color-card: #ffffff;
+  --color-primary: #7a67ee;
+  --color-primary-light: #a89ef5;
+  --color-primary-subtle: #f3f1ff;
+  --color-text: #394050;
+  --color-text-secondary: #656d7e;
+  --color-border: #e8ecf2;
+  --color-did-bg: #edf7ff;
+  --color-did-text: #1a85ca;
+  --color-code-bg: #f5f7fa;
+  --color-link: #7a67ee;
+  --transition: all 0.3s ease;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
+  --shadow-md: 0 6px 14px rgba(0,0,0,0.06);
+  --radius: 12px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 40px;
+  font-weight: 700;
+  font-size: 2.4rem;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  position: relative;
+}
+
+h1::after {
+  content: "";
+  position: absolute;
+  width: 60px;
+  height: 4px;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+  border-radius: 2px;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 30px;
+  text-decoration: none;
+  color: var(--color-primary);
+  font-weight: 500;
+  transition: var(--transition);
+  padding: 8px 16px;
+  border-radius: 30px;
+  background-color: var(--color-primary-subtle);
+}
+
+.back-link:hover {
+  background-color: rgba(122, 103, 238, 0.15);
+  transform: translateX(-3px);
+}
+
+.back-link::before {
+  content: "←";
+  margin-right: 8px;
+  font-size: 1.2em;
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: 20px 15px;
+  }
+  
+  h1 {
+    font-size: 2rem;
+  }
+}
+
+/* Error page styles */
+.error-container {
+  background-color: var(--color-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 60px 30px;
+  margin-top: 40px;
+  border: 1px solid var(--color-border);
+  text-align: center;
+}
+
+.error-icon {
+  font-size: 80px;
+  margin-bottom: 20px;
+  color: var(--color-primary-light);
+  display: block;
+}
+
+.pubkey-container {
+  background-color: rgba(0,0,0,0.03);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: monospace;
+  margin-bottom: 30px;
+  word-break: break-all;
+}`;
+
+    fs.writeFileSync(stylesPath, cssContent);
+    console.log('Created/updated styles.css for consistent styling');
+  } catch (error) {
+    console.error('Error creating styles.css:', error);
+  }
+
   // Home page - list of recent profiles
   app.get('/', async (req, res) => {
     const profiles = await getRecentProfiles();
@@ -295,87 +424,128 @@ async function getProfile (pubkey) {
           <title>Nostr Profile Beacon</title>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+          <link rel="stylesheet" href="/styles.css">
           <style>
-            body {
-              font-family: system-ui, -apple-system, sans-serif;
-              line-height: 1.5;
-              max-width: 800px;
-              margin: 0 auto;
-              padding: 20px;
-              color: #333;
-            }
-            h1 {
-              text-align: center;
-              margin-bottom: 30px;
-            }
             .profile-list {
               list-style: none;
               padding: 0;
+              display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+              gap: 20px;
             }
+            
             .profile-item {
-              border: 1px solid #ddd;
-              border-radius: 5px;
-              margin-bottom: 10px;
-              padding: 15px;
-              transition: all 0.2s;
+              border-radius: var(--radius);
+              background-color: var(--color-card);
+              border: 1px solid var(--color-border);
+              box-shadow: var(--shadow-sm);
+              transition: var(--transition);
+              overflow: hidden;
             }
+            
             .profile-item:hover {
-              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+              transform: translateY(-4px);
+              box-shadow: var(--shadow-md);
+              border-color: var(--color-primary-light);
             }
+            
             .profile-link {
-              display: flex;
-              align-items: center;
+              display: block;
               text-decoration: none;
               color: inherit;
+              padding: 20px;
             }
+            
+            .profile-header {
+              display: flex;
+              align-items: center;
+              margin-bottom: 15px;
+            }
+            
             .profile-picture {
-              width: 50px;
-              height: 50px;
+              width: 60px;
+              height: 60px;
               border-radius: 50%;
               margin-right: 15px;
               object-fit: cover;
-              background-color: #E0E0E0; /* Placeholder background */
+              background-color: #E0E0E0;
               display: flex;
               justify-content: center;
               align-items: center;
               overflow: hidden;
+              border: 3px solid var(--color-primary-subtle);
+              box-shadow: 0 2px 6px rgba(122, 103, 238, 0.2);
             }
+            
             .profile-picture-initial {
               font-size: 24px;
               font-weight: bold;
-              color: #888;
+              color: var(--color-primary);
               text-transform: uppercase;
             }
-            .profile-name {
-              font-weight: bold;
-              font-size: 1.1em;
-              margin: 0;
+            
+            .profile-info {
+              flex: 1;
             }
+            
+            .profile-name {
+              font-weight: 600;
+              font-size: 1.1em;
+              margin-bottom: 4px;
+              color: var(--color-text);
+              display: -webkit-box;
+              -webkit-line-clamp: 1;
+              -webkit-box-orient: vertical;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              text-align: left;
+            }
+            
             .profile-pubkey {
               font-family: monospace;
-              color: #666;
-              font-size: 0.9em;
-              margin: 0;
+              color: var(--color-text-secondary);
+              font-size: 0.8em;
+              display: flex;
+              align-items: center;
+              margin-bottom: 4px;
             }
+            
             .did-indicator {
               display: inline-block;
-              background-color: #e6f2ff;
-              color: #0066cc;
-              font-size: 0.8em;
-              padding: 2px 6px;
-              border-radius: 3px;
-              margin-left: 5px;
-              vertical-align: middle;
+              background-color: var(--color-did-bg);
+              color: var(--color-did-text);
+              font-size: 0.75em;
+              font-weight: 500;
+              padding: 2px 8px;
+              border-radius: 20px;
+              margin-left: 6px;
+              letter-spacing: 0.5px;
             }
+            
             .updated-at {
-              color: #666;
-              font-size: 0.8em;
-              margin-top: 5px;
+              color: var(--color-text-secondary);
+              font-size: 0.75em;
+              margin-top: 2px;
+            }
+            
+            @media (max-width: 768px) {
+              .profile-list {
+                grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+              }
+            }
+            
+            @media (max-width: 480px) {
+              .profile-list {
+                grid-template-columns: 1fr;
+              }
             }
           </style>
         </head>
         <body>
-          <h1>Recent Nostr Profiles</h1>
+          <h1>Nostr Profiles</h1>
           <ul class="profile-list">
             ${profiles.map(profile => {
       const content = profile.content ? JSON.parse(profile.content) : {};
@@ -414,19 +584,21 @@ async function getProfile (pubkey) {
       return `
                 <li class="profile-item">
                   <a href="/profile/${profile.pubkey}" class="profile-link">
-                    <div class="profile-picture" style="background-color: ${bgColor};">
-                      <img src="${picture}" style="width: 100%; height: 100%;" 
-                          onerror="this.style.display='none'; this.parentNode.innerHTML = '<div class=\'profile-picture-initial\'>${initial}</div>';"
-                          loading="lazy">
+                    <div class="profile-header">
+                      <div class="profile-picture" style="background-color: ${bgColor};">
+                        <img src="${picture}" style="width: 100%; height: 100%;" 
+                            onerror="this.style.display='none'; this.parentNode.innerHTML = '<div class=\'profile-picture-initial\'>${initial}</div>';"
+                            loading="lazy">
+                      </div>
+                      <div class="profile-info">
+                        <p class="profile-name">${name}</p>
+                        <p class="profile-pubkey">${profile.pubkey.substring(0, 8)}...
+                          <span class="did-indicator" title="Decentralized Identifier">DID</span>
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p class="profile-name">${name}</p>
-                      <p class="profile-pubkey">${profile.pubkey.substring(0, 10)}...
-                        <span class="did-indicator" title="Decentralized Identifier">DID</span>
-                      </p>
-                      ${updatedText ? `<p class="updated-at">${updatedText}</p>` : ''}
-                      ${createdText ? `<p class="updated-at">${createdText}</p>` : ''}
-                    </div>
+                    ${updatedText ? `<p class="updated-at">${updatedText}</p>` : ''}
+                    ${createdText ? `<p class="updated-at">${createdText}</p>` : ''}
                   </a>
                 </li>
               `;
@@ -442,7 +614,35 @@ async function getProfile (pubkey) {
     const profile = await getProfile(req.params.pubkey);
 
     if (!profile) {
-      return res.status(404).send('Profile not found');
+      return res.status(404).send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Profile Not Found - Nostr Beacon</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+            <link rel="stylesheet" href="/styles.css">
+            <style>
+              body {
+                text-align: center;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="error-container">
+              <span class="error-icon">⚠️</span>
+              <h1>Profile Not Found</h1>
+              <p>We couldn't find a Nostr profile with the following public key:</p>
+              <div class="pubkey-container">${req.params.pubkey}</div>
+              <p>The profile may have been deleted or has not been added to this beacon yet.</p>
+              <a href="/" class="back-link">Return to profiles</a>
+            </div>
+          </body>
+        </html>
+      `);
     }
 
     const content = profile.content ? JSON.parse(profile.content) : {};
@@ -488,136 +688,268 @@ async function getProfile (pubkey) {
           <title>${name} - Nostr Profile</title>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+          <link rel="stylesheet" href="/styles.css">
           <style>
-            body {
-              font-family: system-ui, -apple-system, sans-serif;
-              line-height: 1.5;
-              max-width: 800px;
-              margin: 0 auto;
-              padding: 20px;
-              color: #333;
-            }
-            .back-link {
-              display: inline-block;
-              margin-bottom: 20px;
-              text-decoration: none;
-              color: #0066cc;
-            }
-            .profile-header {
-              display: flex;
-              align-items: center;
+            .profile-card {
+              background-color: var(--color-card);
+              border-radius: var(--radius);
+              box-shadow: var(--shadow-sm);
+              overflow: hidden;
+              border: 1px solid var(--color-border);
               margin-bottom: 30px;
             }
+            
+            .profile-header {
+              padding: 30px;
+              display: flex;
+              align-items: center;
+              border-bottom: 1px solid var(--color-border);
+            }
+            
             .profile-picture {
-              width: 100px;
-              height: 100px;
+              width: 120px;
+              height: 120px;
               border-radius: 50%;
-              margin-right: 20px;
+              margin-right: 30px;
               object-fit: cover;
-              background-color: #E0E0E0; /* Placeholder background */
+              background-color: #E0E0E0;
               display: flex;
               justify-content: center;
               align-items: center;
               overflow: hidden;
+              border: 4px solid var(--color-primary-subtle);
+              box-shadow: 0 3px 10px rgba(122, 103, 238, 0.2);
             }
+            
             .profile-picture-initial {
-              font-size: 36px;
+              font-size: 48px;
               font-weight: bold;
-              color: #888;
+              color: var(--color-primary);
               text-transform: uppercase;
             }
-            .profile-name {
-              font-size: 2em;
-              margin: 0;
+            
+            .profile-title {
+              flex: 1;
             }
+            
+            .profile-name {
+              font-size: 2.2em;
+              font-weight: 700;
+              margin: 0 0 8px 0;
+              color: var(--color-text);
+              text-align: left;
+            }
+            
             .profile-pubkey {
               font-family: monospace;
               word-break: break-all;
-              color: #666;
-              margin: 5px 0;
-            }
-            .profile-section {
-              margin-bottom: 30px;
-            }
-            .profile-section h2 {
-              border-bottom: 1px solid #ddd;
-              padding-bottom: 5px;
-            }
-            .metadata dt {
-              font-weight: bold;
-              margin-top: 10px;
-            }
-            .metadata dd {
-              margin-left: 0;
-            }
-            pre {
-              background: #f5f5f5;
-              padding: 15px;
-              overflow: auto;
-              border-radius: 5px;
-            }
-            .did-section {
-              background-color: #f8f9fa;
-              border: 1px solid #e9ecef;
-              border-radius: 5px;
-              padding: 15px;
-              margin-top: 10px;
-            }
-            .api-link {
+              color: var(--color-text-secondary);
+              font-size: 0.9em;
+              background-color: var(--color-code-bg);
+              padding: 6px 12px;
+              border-radius: 6px;
               display: inline-block;
-              margin-top: 10px;
-              color: #0066cc;
+              margin-top: 2px;
+            }
+            
+            .profile-section {
+              padding: 30px;
+              border-bottom: 1px solid var(--color-border);
+            }
+            
+            .profile-section:last-child {
+              border-bottom: none;
+            }
+            
+            .profile-section h2 {
+              font-size: 1.4em;
+              font-weight: 600;
+              margin-bottom: 15px;
+              color: var(--color-primary);
+              display: flex;
+              align-items: center;
+            }
+            
+            .profile-section h2::before {
+              content: "";
+              display: inline-block;
+              width: 5px;
+              height: 20px;
+              background-color: var(--color-primary);
+              margin-right: 10px;
+              border-radius: 3px;
+            }
+            
+            .profile-section p {
+              margin-bottom: 15px;
+              line-height: 1.7;
+            }
+            
+            .metadata {
+              display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+              gap: 20px;
+            }
+            
+            .metadata-item {
+              margin-bottom: 20px;
+            }
+            
+            .metadata-label {
+              font-weight: 500;
+              color: var(--color-text-secondary);
+              margin-bottom: 5px;
+              font-size: 0.9em;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            
+            .metadata-value {
+              font-size: 1em;
+              word-break: break-all;
+            }
+            
+            .metadata-value a {
+              color: var(--color-link);
+              text-decoration: none;
+              border-bottom: 1px solid transparent;
+              transition: var(--transition);
+            }
+            
+            .metadata-value a:hover {
+              border-bottom-color: var(--color-primary);
+            }
+            
+            .did-section {
+              background-color: var(--color-code-bg);
+              border-radius: var(--radius);
+              padding: 20px;
+            }
+            
+            pre {
+              background: var(--color-code-bg);
+              padding: 20px;
+              overflow: auto;
+              border-radius: var(--radius);
+              font-size: 0.9em;
+              color: var(--color-text);
+              border: 1px solid var(--color-border);
+            }
+            
+            .api-links {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 10px;
+              margin-top: 15px;
+            }
+            
+            .api-link {
+              display: inline-flex;
+              align-items: center;
+              padding: 8px 15px;
+              background-color: var(--color-primary-subtle);
+              color: var(--color-primary);
               text-decoration: none;
               font-size: 0.9em;
+              font-weight: 500;
+              border-radius: 20px;
+              transition: var(--transition);
             }
+            
             .api-link:hover {
-              text-decoration: underline;
+              background-color: var(--color-primary);
+              color: white;
+              transform: translateY(-2px);
+            }
+            
+            @media (max-width: 768px) {
+              .profile-header {
+                flex-direction: column;
+                text-align: center;
+              }
+              
+              .profile-picture {
+                margin-right: 0;
+                margin-bottom: 20px;
+              }
+              
+              .metadata {
+                grid-template-columns: 1fr;
+              }
             }
           </style>
         </head>
         <body>
-          <a href="/" class="back-link">← Back to list</a>
+          <a href="/" class="back-link">Back to profiles</a>
           
-          <div class="profile-header">
-            <div class="profile-picture" style="background-color: ${bgColor};">
-              <img src="${picture}" style="width: 100%; height: 100%;" 
-                  onerror="this.style.display='none'; this.parentNode.innerHTML = '<div class=\'profile-picture-initial\'>${initial}</div>';"
-                  loading="lazy">
+          <div class="profile-card">
+            <div class="profile-header">
+              <div class="profile-picture" style="background-color: ${bgColor};">
+                <img src="${picture}" style="width: 100%; height: 100%;" 
+                    onerror="this.style.display='none'; this.parentNode.innerHTML = '<div class=\'profile-picture-initial\'>${initial}</div>';"
+                    loading="lazy">
+              </div>
+              <div class="profile-title">
+                <h1 class="profile-name">${name}</h1>
+                <div class="profile-pubkey">${profile.pubkey}</div>
+              </div>
             </div>
-            <div>
-              <h1 class="profile-name">${name}</h1>
-              <p class="profile-pubkey">${profile.pubkey}</p>
+            
+            <div class="profile-section">
+              <h2>About</h2>
+              <p>${about}</p>
             </div>
-          </div>
-          
-          <div class="profile-section">
-            <h2>About</h2>
-            <p>${about}</p>
-          </div>
-          
-          <div class="profile-section">
-            <h2>Metadata</h2>
-            <dl class="metadata">
-              ${website ? `<dt>Website</dt><dd><a href="${website}" target="_blank">${website}</a></dd>` : ''}
-              ${nip05 ? `<dt>NIP-05</dt><dd>${nip05}</dd>` : ''}
-              <dt>Created</dt><dd>${createdText}</dd>
-              <dt>Updated</dt><dd>${updatedText}</dd>
-              <dt>Nostr DID</dt><dd>did:nostr:${profile.pubkey}</dd>
-            </dl>
-          </div>
-          
-          <div class="profile-section">
-            <h2>DID Document</h2>
-            <div class="did-section">
-              <pre>${JSON.stringify(generateDidDocument(profile.pubkey, profile), null, 2)}</pre>
-              <a href="/api/did/${profile.pubkey}" target="_blank" class="api-link">View as JSON API endpoint</a>
-              <a href="/.well-known/did/nostr/${profile.pubkey}.json" target="_blank" class="api-link">View as standardized DID document</a>
+            
+            <div class="profile-section">
+              <h2>Metadata</h2>
+              <div class="metadata">
+                ${website ? `
+                <div class="metadata-item">
+                  <div class="metadata-label">Website</div>
+                  <div class="metadata-value"><a href="${website}" target="_blank">${website}</a></div>
+                </div>` : ''}
+                
+                ${nip05 ? `
+                <div class="metadata-item">
+                  <div class="metadata-label">NIP-05</div>
+                  <div class="metadata-value">${nip05}</div>
+                </div>` : ''}
+                
+                <div class="metadata-item">
+                  <div class="metadata-label">Created</div>
+                  <div class="metadata-value">${createdText}</div>
+                </div>
+                
+                <div class="metadata-item">
+                  <div class="metadata-label">Updated</div>
+                  <div class="metadata-value">${updatedText}</div>
+                </div>
+                
+                <div class="metadata-item">
+                  <div class="metadata-label">Nostr DID</div>
+                  <div class="metadata-value">did:nostr:${profile.pubkey}</div>
+                </div>
+              </div>
             </div>
-          </div>
-          
-          <div class="profile-section">
-            <h2>Raw JSON</h2>
-            <pre>${JSON.stringify(profile, null, 2)}</pre>
+            
+            <div class="profile-section">
+              <h2>DID Document</h2>
+              <div class="did-section">
+                <pre>${JSON.stringify(generateDidDocument(profile.pubkey, profile), null, 2)}</pre>
+                <div class="api-links">
+                  <a href="/api/did/${profile.pubkey}" target="_blank" class="api-link">View as JSON API endpoint</a>
+                  <a href="/.well-known/did/nostr/${profile.pubkey}.json" target="_blank" class="api-link">View as standardized DID document</a>
+                </div>
+              </div>
+            </div>
+            
+            <div class="profile-section">
+              <h2>Raw JSON</h2>
+              <pre>${JSON.stringify(profile, null, 2)}</pre>
+            </div>
           </div>
         </body>
       </html>
@@ -735,4 +1067,3 @@ async function getProfile (pubkey) {
     process.exit(0);
   });
 })();
-

@@ -654,6 +654,12 @@ h1::after {
       picture = content.picture;
     }
 
+    // Validate banner URL for safety
+    let banner = null;
+    if (content.banner && isValidImageUrl(content.banner)) {
+      banner = content.banner;
+    }
+
     const initial = name.charAt(0);
     const bgColor = stringToColor(profile.pubkey);
     const about = content.about || 'No description provided';
@@ -700,6 +706,13 @@ h1::after {
               overflow: hidden;
               border: 1px solid var(--color-border);
               margin-bottom: 30px;
+            }
+            
+            .profile-banner {
+              width: 100%;
+              height: 200px;
+              object-fit: cover;
+              margin-bottom: -30px;
             }
             
             .profile-header {
@@ -886,6 +899,7 @@ h1::after {
           <a href="/" class="back-link">Back to profiles</a>
           
           <div class="profile-card">
+            ${banner ? `<img src="${banner}" alt="Profile Banner" class="profile-banner">` : ''}
             <div class="profile-header">
               <div class="profile-picture" style="background-color: ${bgColor};">
                 <img src="${picture}" style="width: 100%; height: 100%;" 

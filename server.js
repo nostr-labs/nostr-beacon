@@ -779,6 +779,36 @@ h1::after {
               margin-top: 2px;
             }
             
+            .profile-links {
+              margin-top: 15px;
+            }
+            
+            .nostr-link {
+              display: inline-flex;
+              align-items: center;
+              padding: 10px 16px;
+              background-color: #8867ff;
+              color: white;
+              text-decoration: none;
+              font-size: 0.95em;
+              font-weight: 600;
+              border-radius: 20px;
+              transition: all 0.3s ease;
+              box-shadow: 0 2px 8px rgba(136, 103, 255, 0.3);
+            }
+            
+            .nostr-link:hover {
+              background-color: #7a5cf0;
+              transform: translateY(-2px);
+              box-shadow: 0 4px 12px rgba(136, 103, 255, 0.4);
+            }
+            
+            .nostr-link::before {
+              content: "⚡";
+              margin-right: 8px;
+              font-size: 1.1em;
+            }
+            
             .profile-section {
               padding: 30px;
               border-bottom: 1px solid var(--color-border);
@@ -920,6 +950,9 @@ h1::after {
               <div class="profile-title">
                 <h1 class="profile-name">${name}</h1>
                 <div class="profile-pubkey">${profile.pubkey}</div>
+                <div class="profile-links">
+                  <a href="https://nostr.rocks/users/${profile.pubkey}" target="_blank" class="nostr-link">View on Nostr</a>
+                </div>
               </div>
             </div>
             
@@ -956,6 +989,11 @@ h1::after {
                 <div class="metadata-item">
                   <div class="metadata-label">Nostr DID</div>
                   <div class="metadata-value">did:nostr:${profile.pubkey}</div>
+                </div>
+                
+                <div class="metadata-item">
+                  <div class="metadata-label">Nostr Feed</div>
+                  <div class="metadata-value"><a href="https://nostr.rocks/users/${profile.pubkey}" target="_blank">nostr.rocks/users/${profile.pubkey.substring(0, 8)}...</a></div>
                 </div>
               </div>
             </div>

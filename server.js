@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { MongoClient } from 'mongodb';
 import { fileURLToPath } from 'url';
+import { bech32, bech32m } from 'bech32';
 
 // Configuration
 const config = {
@@ -43,6 +44,50 @@ function stringToColor (str) {
   // Generate a vibrant but not too bright color
   const hue = hash % 360;
   return `hsl(${hue}, 60%, 70%)`;
+}
+
+/**
+ * Converts a hexadecimal public key (must be 32 bytes / 64 chars)
+ * into a Bitcoin Testnet Taproot (P2TR) address (bech32m encoded).
+ *
+ * @param {string} hexPubkey - The 64-character hexadecimal public key.
+ * @returns {string|null} The Bech32m encoded testnet Taproot address (e.g., "tb1p...") or null if conversion fails.
+ * @throws {Error} If the input is not a valid 64-character hex string.
+ */
+function hexPubkeyToTaprootAddress (hexPubkey) {
+  // 1. Validate Input
+  if (typeof hexPubkey !== 'string' || hexPubkey.length !== 64 || !/^[0-9a-fA-F]+$/.test(hexPubkey)) {
+    // Throw or return null based on desired error handling. Returning null for graceful DID generation.
+    console.error('Invalid hex public key provided for Taproot conversion:', hexPubkey);
+    return null;
+    // throw new Error('Invalid hex public key provided. Must be a 64-character hex string.');
+  }
+
+  try {
+    // 2. Convert hex string to a byte array (Uint8Array)
+    const buffer = Uint8Array.from(
+      hexPubkey.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
+    );
+
+    // 3. Convert the byte array to Bech32 words (5-bit groups)
+    const words = bech32.toWords(buffer);
+
+    // 4. Define the Human-Readable Part (HRP) and Witness Version
+    const hrp = 'tb'; // "tb" for Bitcoin Testnet
+    const witnessVersion = 1; // Witness version 1 specifies Taproot (P2TR)
+
+    // 5. Prepend the witness version to the words array
+    const dataToEncode = [witnessVersion, ...words];
+
+    // 6. Encode using Bech32m
+    const taprootAddress = bech32m.encode(hrp, dataToEncode);
+
+    return taprootAddress;
+
+  } catch (error) {
+    console.error(`Error converting pubkey ${hexPubkey} to Taproot address:`, error);
+    return null; // Return null if conversion fails to avoid breaking DID generation
+  }
 }
 
 // Generate DID document for Nostr profile
@@ -102,6 +147,27 @@ function generateDidDocument (pubkey, profile) {
     } catch (error) {
       console.error(`Error parsing profile content for ${pubkey}:`, error);
     }
+  }
+
+  // Add Bitcoin Taproot Address service
+  try {
+    console.log(`[Debug DID] Processing pubkey for Taproot: ${pubkey}`);
+    const taprootAddress = hexPubkeyToTaprootAddress(pubkey);
+    console.log(`[Debug DID] Result from hexPubkeyToTaprootAddress: ${taprootAddress}`);
+    if (taprootAddress) {
+      // Initialize service array if it doesn't exist (could have been skipped above)
+      if (!didDoc.service) {
+        didDoc.service = [];
+      }
+      didDoc.service.push({
+        "id": `did:nostr:${pubkey}#bitcoin-taproot`,
+        "type": "BitcoinTaprootAddress", // Descriptive type for the service
+        "serviceEndpoint": taprootAddress
+      });
+    }
+  } catch (error) {
+    // Error already logged within hexPubkeyToTaprootAddress
+    console.error(`Could not generate Taproot address service for ${pubkey}`);
   }
 
   return didDoc;

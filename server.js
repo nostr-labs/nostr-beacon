@@ -69,22 +69,33 @@ function generateDidDocument (pubkey, profile) {
     ]
   };
 
-  // Add Storage service if available in profile content
+  // Add services if available in profile content
   if (profile && profile.content) {
     try {
       const content = JSON.parse(profile.content);
+
+      // Initialize service array if it doesn't exist
+      if (!didDoc.service) {
+        didDoc.service = [];
+      }
+
+      // Add Storage service if available
       if (content.storage || content.Storage) {
         const storageInfo = content.storage || content.Storage;
-
-        // Initialize service array if it doesn't exist
-        if (!didDoc.service) {
-          didDoc.service = [];
-        }
 
         didDoc.service.push({
           "id": `did:nostr:${pubkey}#storage`,
           "type": "Storage",
           "serviceEndpoint": typeof storageInfo === 'string' ? storageInfo : JSON.stringify(storageInfo)
+        });
+      }
+
+      // Add Website service if available
+      if (content.website) {
+        didDoc.service.push({
+          "id": `did:nostr:${pubkey}#website`,
+          "type": ["Website", "LinkedDomains"],
+          "serviceEndpoint": content.website
         });
       }
     } catch (error) {

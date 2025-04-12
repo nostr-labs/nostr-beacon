@@ -25,7 +25,8 @@ function isValidImageUrl (url) {
       url.match(/\.(jpg|jpeg|png|gif|svg|webp)($|\?)/) ||
       url.includes('imgur.com') ||
       url.includes('cloudfront.net') ||
-      url.includes('nostr.build')
+      url.includes('nostr.build') ||
+      url.includes('dicebear.com')
     )
   );
 }

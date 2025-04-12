@@ -90,6 +90,47 @@ function hexPubkeyToTaprootAddress (hexPubkey) {
   }
 }
 
+/**
+ * Converts a hexadecimal public key (must be 32 bytes / 64 chars)
+ * into a Bitcoin Mainnet Taproot (P2TR) address (bech32m encoded).
+ *
+ * @param {string} hexPubkey - The 64-character hexadecimal public key.
+ * @returns {string|null} The Bech32m encoded mainnet Taproot address (e.g., "bc1p...") or null if conversion fails.
+ */
+function hexPubkeyToMainnetTaprootAddress (hexPubkey) {
+  // 1. Validate Input (same as testnet)
+  if (typeof hexPubkey !== 'string' || hexPubkey.length !== 64 || !/^[0-9a-fA-F]+$/.test(hexPubkey)) {
+    console.error('Invalid hex public key provided for Mainnet Taproot conversion:', hexPubkey);
+    return null;
+  }
+
+  try {
+    // 2. Convert hex string to a byte array (Uint8Array)
+    const buffer = Uint8Array.from(
+      hexPubkey.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
+    );
+
+    // 3. Convert the byte array to Bech32 words (5-bit groups)
+    const words = bech32.toWords(buffer);
+
+    // 4. Define the Human-Readable Part (HRP) and Witness Version
+    const hrp = 'bc'; // "bc" for Bitcoin Mainnet
+    const witnessVersion = 1; // Witness version 1 specifies Taproot (P2TR)
+
+    // 5. Prepend the witness version to the words array
+    const dataToEncode = [witnessVersion, ...words];
+
+    // 6. Encode using Bech32m
+    const mainnetTaprootAddress = bech32m.encode(hrp, dataToEncode);
+
+    return mainnetTaprootAddress;
+
+  } catch (error) {
+    console.error(`Error converting pubkey ${hexPubkey} to Mainnet Taproot address:`, error);
+    return null; // Return null if conversion fails
+  }
+}
+
 // Generate DID document for Nostr profile
 function generateDidDocument (pubkey, profile) {
   if (!pubkey) return null;
@@ -161,13 +202,35 @@ function generateDidDocument (pubkey, profile) {
       }
       didDoc.service.push({
         "id": `did:nostr:${pubkey}#bitcoin-taproot`,
-        "type": "BitcoinTaprootAddress", // Descriptive type for the service
+        "type": "TaprootAddress", // Descriptive type for the service
+        "network": "tbtc4",
         "serviceEndpoint": taprootAddress
       });
     }
   } catch (error) {
     // Error already logged within hexPubkeyToTaprootAddress
     console.error(`Could not generate Taproot address service for ${pubkey}`);
+  }
+
+  // Add Bitcoin Mainnet Taproot Address service
+  try {
+    console.log(`[Debug DID] Processing pubkey for Mainnet Taproot: ${pubkey}`);
+    const mainnetTaprootAddress = hexPubkeyToMainnetTaprootAddress(pubkey);
+    console.log(`[Debug DID] Result from hexPubkeyToMainnetTaprootAddress: ${mainnetTaprootAddress}`);
+    if (mainnetTaprootAddress) {
+      // Initialize service array if it doesn't exist
+      if (!didDoc.service) {
+        didDoc.service = [];
+      }
+      didDoc.service.push({
+        "id": `did:nostr:${pubkey}#bitcoin-mainnet-taproot`,
+        "type": "TaprootAddress",
+        "network": "btc",
+        "serviceEndpoint": mainnetTaprootAddress
+      });
+    }
+  } catch (error) {
+    console.error(`Could not generate Mainnet Taproot address service for ${pubkey}`);
   }
 
   return didDoc;
@@ -766,6 +829,14 @@ h1::after {
       console.error('Date parsing error:', e);
     }
 
+    // Generate DID document including the Taproot address
+    const didDocument = generateDidDocument(profile.pubkey, profile);
+    // Extract Taproot address if present for display
+    const testnetTaprootService = didDocument.service?.find(s => s.type === 'BitcoinTaprootAddress');
+    const testnetTaprootAddressDisplay = testnetTaprootService?.serviceEndpoint || '';
+    const mainnetTaprootService = didDocument.service?.find(s => s.type === 'BitcoinMainnetTaprootAddress');
+    const mainnetTaprootAddressDisplay = mainnetTaprootService?.serviceEndpoint || '';
+
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -1054,6 +1125,18 @@ h1::after {
         }</a></div>
                 </div>` : ''}
                 
+                ${testnetTaprootAddressDisplay ? `
+                <div class="metadata-item">
+                  <div class="metadata-label">Bitcoin Testnet (Taproot)</div>
+                  <div class="metadata-value"><a href="https://mempool.space/testnet4/address/${testnetTaprootAddressDisplay}" target="_blank">${testnetTaprootAddressDisplay}</a></div>
+                </div>` : ''}
+                
+                ${mainnetTaprootAddressDisplay ? `
+                <div class="metadata-item">
+                  <div class="metadata-label">Bitcoin Mainnet (Taproot)</div>
+                  <div class="metadata-value"><a href="https://mempool.space/address/${mainnetTaprootAddressDisplay}" target="_blank">${mainnetTaprootAddressDisplay}</a></div>
+                </div>` : ''}
+                
                 <div class="metadata-item">
                   <div class="metadata-label">Created</div>
                   <div class="metadata-value">${createdText}</div>
@@ -1079,7 +1162,7 @@ h1::after {
             <div class="profile-section">
               <h2>DID Document</h2>
               <div class="did-section">
-                <pre>${JSON.stringify(generateDidDocument(profile.pubkey, profile), null, 2)}</pre>
+                <pre>${JSON.stringify(didDocument, null, 2)}</pre>
                 <div class="api-links">
                   <a href="/api/did/${profile.pubkey}" target="_blank" class="api-link">View as JSON API endpoint</a>
                   <a href="/.well-known/did/nostr/${profile.pubkey}.json" target="_blank" class="api-link">View as standardized DID document</a>

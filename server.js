@@ -676,6 +676,7 @@ h1::after {
     const about = content.about || 'No description provided';
     const website = content.website || '';
     const nip05 = content.nip05 || '';
+    const storage = content.storage || content.Storage || '';
 
     // Fix for date display
     let createdText = 'Unknown date';
@@ -974,6 +975,16 @@ h1::after {
                 <div class="metadata-item">
                   <div class="metadata-label">NIP-05</div>
                   <div class="metadata-value">${nip05}</div>
+                </div>` : ''}
+                
+                ${storage ? `
+                <div class="metadata-item">
+                  <div class="metadata-label">Storage</div>
+                  <div class="metadata-value"><a href="${typeof storage === 'string' ? storage :
+          (Array.isArray(storage) && storage.length > 0 && typeof storage[0] === 'string' ? storage[0] : '#')
+        }" target="_blank">${typeof storage === 'string' ? storage :
+          (Array.isArray(storage) && storage.length > 0 && typeof storage[0] === 'string' ? storage[0] : JSON.stringify(storage))
+        }</a></div>
                 </div>` : ''}
                 
                 <div class="metadata-item">

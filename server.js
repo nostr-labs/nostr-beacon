@@ -202,7 +202,7 @@ function generateDidDocument (pubkey, profile) {
       }
       didDoc.service.push({
         "id": `did:nostr:${pubkey}#bitcoin-taproot`,
-        "type": "TaprootAddress", // Descriptive type for the service
+        "type": "TaprootAddress",
         "network": "tbtc4",
         "serviceEndpoint": taprootAddress
       });
@@ -832,9 +832,12 @@ h1::after {
     // Generate DID document including the Taproot address
     const didDocument = generateDidDocument(profile.pubkey, profile);
     // Extract Taproot address if present for display
-    const testnetTaprootService = didDocument.service?.find(s => s.type === 'BitcoinTaprootAddress');
+    const taprootServices = didDocument.service?.filter(s => s.type === 'TaprootAddress') || [];
+
+    const testnetTaprootService = taprootServices.find(s => s.network === 'tbtc4');
     const testnetTaprootAddressDisplay = testnetTaprootService?.serviceEndpoint || '';
-    const mainnetTaprootService = didDocument.service?.find(s => s.type === 'BitcoinMainnetTaprootAddress');
+
+    const mainnetTaprootService = taprootServices.find(s => s.network === 'btc');
     const mainnetTaprootAddressDisplay = mainnetTaprootService?.serviceEndpoint || '';
 
     res.send(`

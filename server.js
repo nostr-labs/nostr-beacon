@@ -47,6 +47,75 @@ function stringToColor (str) {
 }
 
 /**
+ * A simplified Base58 implementation for multibase encoding
+ * Note: This is a basic implementation for demonstration purposes
+ */
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+function encodeBase58 (buffer) {
+  if (buffer.length === 0) return '';
+
+  // Count leading zeros
+  let zeros = 0;
+  while (zeros < buffer.length && buffer[zeros] === 0) {
+    zeros++;
+  }
+
+  // Convert to numeric value
+  let value = 0n;
+  for (let i = zeros; i < buffer.length; i++) {
+    value = value * 256n + BigInt(buffer[i]);
+  }
+
+  // Convert to base58 string
+  let result = '';
+  while (value > 0) {
+    const remainder = Number(value % 58n);
+    value = value / 58n;
+    result = BASE58_ALPHABET[remainder] + result;
+  }
+
+  // Add leading '1's for each leading zero byte
+  return '1'.repeat(zeros) + result;
+}
+
+/**
+ * Converts a hexadecimal ed25519 public key to multibase format for DIDs.
+ * For proper DIDs, we need to:
+ * 1. Convert hex to binary
+ * 2. Prepend the Ed25519 multicodec prefix (0xed01)
+ * 3. Encode with multibase prefix 'z' (base58btc)
+ *
+ * @param {string} hexEd25519Key - The hexadecimal ed25519 public key
+ * @returns {string|null} The multibase encoded ed25519 key or null if conversion fails
+ */
+function hexEd25519KeyToMultibase (hexEd25519Key) {
+  if (typeof hexEd25519Key !== 'string' || !/^[0-9a-fA-F]+$/.test(hexEd25519Key)) {
+    console.error('Invalid hex ed25519 key provided for multibase conversion:', hexEd25519Key);
+    return null;
+  }
+
+  try {
+    // Convert hex string to a byte array
+    const keyBytes = Uint8Array.from(
+      hexEd25519Key.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
+    );
+
+    // Create a new array with the multicodec prefix (0xed01) + key bytes
+    const prefixedBytes = new Uint8Array(keyBytes.length + 2);
+    prefixedBytes[0] = 0xed;  // First byte of multicodec prefix for ed25519-pub
+    prefixedBytes[1] = 0x01;  // Second byte of the prefix
+    prefixedBytes.set(keyBytes, 2);  // Copy the key bytes after the prefix
+
+    // Encode with base58 and add 'z' multibase prefix
+    return 'z' + encodeBase58(prefixedBytes);
+  } catch (error) {
+    console.error(`Error converting ed25519 key ${hexEd25519Key} to multibase:`, error);
+    return null;
+  }
+}
+
+/**
  * Converts a hexadecimal public key (must be 32 bytes / 64 chars)
  * into a Bitcoin Testnet Taproot (P2TR) address (bech32m encoded).
  *
@@ -138,7 +207,8 @@ function generateDidDocument (pubkey, profile) {
   const didDoc = {
     "@context": [
       "https://www.w3.org/ns/did/v1",
-      "https://w3id.org/nostr/context"
+      "https://w3id.org/nostr/context",
+      "https://w3id.org/security/suites/ed25519-2020/v1"
     ],
     "id": `did:nostr:${pubkey}`,
     "verificationMethod": [
@@ -160,6 +230,32 @@ function generateDidDocument (pubkey, profile) {
   if (profile && profile.content) {
     try {
       const content = JSON.parse(profile.content);
+
+      // Check if profile has an ed25519 key and add it to the DID document
+      if (content.ed25519) {
+        console.log(`[Debug DID] Found ed25519 key in profile for ${pubkey}: ${content.ed25519}`);
+        const multibaseEd25519Key = hexEd25519KeyToMultibase(content.ed25519);
+        if (multibaseEd25519Key) {
+          console.log(`[Debug DID] Converted to multibase: ${multibaseEd25519Key}`);
+          // Add ed25519 key as a verification method
+          didDoc.verificationMethod.push({
+            "id": `did:nostr:${pubkey}#ed25519-key1`,
+            "controller": `did:nostr:${pubkey}`,
+            "type": "Ed25519VerificationKey2020",
+            "publicKeyMultibase": multibaseEd25519Key
+          });
+
+          // Add the key reference to authentication and assertionMethod sections
+          didDoc.authentication.push("#ed25519-key1");
+          didDoc.assertionMethod.push("#ed25519-key1");
+
+          // Add keyAgreement section if it doesn't exist
+          if (!didDoc.keyAgreement) {
+            didDoc.keyAgreement = [];
+          }
+          didDoc.keyAgreement.push("#ed25519-key1");
+        }
+      }
 
       // Initialize service array if it doesn't exist
       if (!didDoc.service) {

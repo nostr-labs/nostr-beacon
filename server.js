@@ -4,6 +4,7 @@ import path from 'path';
 import { MongoClient } from 'mongodb';
 import { fileURLToPath } from 'url';
 import { bech32, bech32m } from 'bech32';
+import cors from 'cors';
 
 // Configuration
 const config = {
@@ -518,6 +519,14 @@ async function getProfile (pubkey) {
   await connectToMongo();
 
   const app = express();
+
+  // Add CORS middleware
+  app.use(cors({
+    origin: '*', // Allow all origins - you can restrict this to specific domains if needed
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    credentials: false
+  }));
 
   // Serve static files
   app.use(express.static(path.join(__dirname, 'public')));

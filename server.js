@@ -227,6 +227,58 @@ function generateDidDocument (pubkey, profile) {
     ]
   };
 
+  // Add profile data to DID document
+  if (profile && profile.content) {
+    try {
+      const content = JSON.parse(profile.content);
+      
+      // Add profile section with parsed content
+      didDoc.profile = {};
+      
+      // Add event ID as DID reference first
+      if (profile.id) {
+        didDoc.profile.id = `did:nostr:event:${profile.id}`;
+      }
+
+      // Add other profile fields
+      if (content.name || content.display_name) {
+        didDoc.profile.name = content.name || content.display_name;
+      }
+      if (content.about) {
+        didDoc.profile.about = content.about;
+      }
+      if (content.picture) {
+        didDoc.profile.picture = content.picture;
+      }
+      if (content.banner) {
+        didDoc.profile.banner = content.banner;
+      }
+      if (content.website) {
+        didDoc.profile.website = content.website;
+      }
+      if (content.nip05) {
+        didDoc.profile.nip05 = content.nip05;
+      }
+      if (content.lud16) {
+        didDoc.profile.lud16 = content.lud16;
+      }
+      if (content.lud06) {
+        didDoc.profile.lud06 = content.lud06;
+      }
+
+      // Add created_at and updated_at timestamps
+      if (profile.created_at) {
+        didDoc.profile.created_at = profile.created_at;
+      }
+      if (profile.updated_at) {
+        didDoc.profile.updated_at = profile.updated_at;
+      }
+
+    } catch (error) {
+      console.error(`Error parsing profile content for DID document ${pubkey}:`, error);
+    }
+  }
+
   // Add services if available in profile content
   if (profile && profile.content) {
     try {

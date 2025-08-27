@@ -202,7 +202,7 @@ function hexPubkeyToMainnetTaprootAddress (hexPubkey) {
 }
 
 // Generate DID document for Nostr profile
-function generateDidDocument (pubkey, profile) {
+async function generateDidDocument (pubkey, profile) {
   if (!pubkey) return null;
 
   const didDoc = {
@@ -382,12 +382,43 @@ function generateDidDocument (pubkey, profile) {
     console.error(`Could not generate Mainnet Taproot address service for ${pubkey}`);
   }
 
+  // Add follows data if using MongoDB and follows collection is available
+  console.log(`[Debug Follows] Storage: ${config.storage}, followsCollection: ${!!followsCollection}`);
+  if (config.storage === 'mongodb' && followsCollection) {
+    try {
+      console.log(`[Debug Follows] Searching for pubkey: ${pubkey}`);
+      const followData = await followsCollection.findOne({ pubkey: pubkey });
+      console.log(`[Debug Follows] Found followData:`, followData ? `${followData.follows?.length || 0} follows` : 'null');
+      
+      if (followData && followData.follows && followData.follows.length > 0) {
+        // Add follows array with DIDs (limit to first 100 for document size)
+        const followsDids = followData.follows
+          .slice(0, 100)
+          .map(follow => `did:nostr:${follow.pubkey}`);
+        
+        didDoc.follows = followsDids;
+        didDoc.followsCount = followData.followsCount || followData.follows.length;
+
+        console.log(`[Debug Follows] Added ${followsDids.length} follows to DID document`);
+
+        // If there are more than 100 follows, indicate truncation
+        if (followData.follows.length > 100) {
+          console.log(`[DID] Truncated follows for ${pubkey}: showing 100 of ${followData.follows.length}`);
+        }
+      }
+    } catch (error) {
+      console.error(`Error fetching follows for DID document ${pubkey}:`, error);
+    }
+  }
+
+  console.log(`[Debug DID] Returning didDoc with keys:`, Object.keys(didDoc));
   return didDoc;
 }
 
 // MongoDB setup
 let mongoClient;
 let beaconCollection;
+let followsCollection;
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -402,6 +433,7 @@ async function connectToMongo () {
 
       const db = mongoClient.db(config.mongoDb);
       beaconCollection = db.collection(config.mongoCollection);
+      followsCollection = db.collection('follows');
 
       // Create index on pubkey for faster lookups
       await beaconCollection.createIndex({ pubkey: 1 }, { unique: true });
@@ -987,7 +1019,7 @@ h1::after {
     }
 
     // Generate DID document including the Taproot address
-    const didDocument = generateDidDocument(profile.pubkey, profile);
+    const didDocument = await generateDidDocument(profile.pubkey, profile);
     // Extract Taproot address if present for display
     const taprootServices = didDocument.service?.filter(s => s.type === 'TaprootAddress') || [];
 
@@ -1361,11 +1393,16 @@ h1::after {
     const pubkey = req.params.pubkey;
     // Fetch the profile first
     const profile = await getProfile(pubkey);
-    const didDocument = generateDidDocument(pubkey, profile);
+    const didDocument = await generateDidDocument(pubkey, profile);
 
     if (!didDocument) {
       return res.status(404).json({ error: 'Could not generate DID document' });
     }
+
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     res.json(didDocument);
   });
@@ -1375,15 +1412,18 @@ h1::after {
     const pubkey = req.params.pubkey;
     // Fetch the profile first
     const profile = await getProfile(pubkey);
-    const didDocument = generateDidDocument(pubkey, profile);
+    const didDocument = await generateDidDocument(pubkey, profile);
 
     if (!didDocument) {
       return res.status(404).json({ error: 'Could not generate DID document' });
     }
 
-    // Set appropriate content type and cache headers
+    // Set appropriate content type, cache and CORS headers
     res.setHeader('Content-Type', 'application/did+json');
     res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     res.json(didDocument);
   });
@@ -1402,7 +1442,7 @@ h1::after {
     // Add each profile's DID as a linked_did
     for (const profile of profiles) {
       if (profile.pubkey) {
-        const didDoc = generateDidDocument(profile.pubkey, profile);
+        const didDoc = await generateDidDocument(profile.pubkey, profile);
         if (didDoc) {
           didConfiguration.linked_dids.push(didDoc);
         }

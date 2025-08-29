@@ -30,7 +30,7 @@ async function viewRelayHealth() {
     const fastestRelays = await relaysCollection
       .find({ online: true, responseTime: { $exists: true, $ne: null } })
       .sort({ responseTime: 1 })
-      .limit(100)
+      .limit(300)
       .toArray();
     
     if (fastestRelays.length > 0) {
@@ -47,7 +47,7 @@ async function viewRelayHealth() {
         checksOnline: { $exists: true }
       })
       .sort({ checksOnline: -1 })
-      .limit(100)
+      .limit(300)
       .toArray();
     
     if (reliableRelays.length > 0 && reliableRelays[0].checksTotal > 1) {

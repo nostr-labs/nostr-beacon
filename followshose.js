@@ -15,6 +15,7 @@ const config = {
 // MongoDB setup
 let mongoClient;
 let followsCollection;
+let relaysCollection;
 
 async function connectToMongo () {
   if (config.storage === 'mongodb') {
@@ -25,11 +26,15 @@ async function connectToMongo () {
 
       const db = mongoClient.db(config.mongoDb);
       followsCollection = db.collection(config.mongoCollection);
+      relaysCollection = db.collection('user_relays'); // Separate collection for relays
 
-      // Create compound index for better query performance
+      // Create indexes for follows collection
       await followsCollection.createIndex({ pubkey: 1 }, { unique: true });
       await followsCollection.createIndex({ 'follows': 1 }); // For reverse lookups
       await followsCollection.createIndex({ created_at: -1 }); // For time-based queries
+
+      // Create index for relays collection
+      await relaysCollection.createIndex({ pubkey: 1 }, { unique: true });
     } catch (error) {
       console.error('MongoDB connection error:', error);
       process.exit(1);
@@ -39,54 +44,49 @@ async function connectToMongo () {
 
 // Parse kind=3 content
 function parseFollowList (event) {
+  // Minimal follow data - just the graph essentials
   const followData = {
     pubkey: event.pubkey,
-    follows: [],
-    relays: {},
+    follows: [], // Will store just pubkey strings
     created_at: event.created_at,
-    event_id: event.id,
-    sig: event.sig
+    count: 0 // Follow count for quick access
   };
 
-  // Parse tags for follows (p tags)
+  // Parse tags for follows (p tags) - store only pubkeys
   if (event.tags && Array.isArray(event.tags)) {
     event.tags.forEach(tag => {
       if (tag[0] === 'p' && tag[1]) {
-        // tag[1] is the followed pubkey
-        // tag[2] could be relay URL (optional)
-        // tag[3] could be petname (optional)
-        followData.follows.push({
-          pubkey: tag[1],
-          relay: tag[2] || null,
-          petname: tag[3] || null
-        });
+        // Only store the pubkey, not relay or petname
+        followData.follows.push(tag[1]);
       }
     });
   }
 
-  // Parse content for relay list (if present)
+  followData.count = followData.follows.length;
+
+  // Parse relays separately (if present)
+  let relayData = null;
   if (event.content) {
     try {
       const relayList = JSON.parse(event.content);
-      followData.relays = relayList;
+      if (Object.keys(relayList).length > 0) {
+        relayData = {
+          pubkey: event.pubkey,
+          relays: relayList,
+          updated_at: event.created_at
+        };
+      }
     } catch (e) {
       // Content might not be JSON or might be empty
-      console.log(`Could not parse content as relay list for ${event.pubkey}`);
     }
   }
 
-  // Statistics for DID-Nostr
-  followData.followsCount = followData.follows.length;
-  
-  // Generate DID identifiers for follows (for DID-Nostr spec)
-  followData.followsDids = followData.follows.map(f => `did:nostr:${f.pubkey}`);
-
-  return followData;
+  return { followData, relayData };
 }
 
 // Save follow list function
 async function saveFollowList (event) {
-  const followData = parseFollowList(event);
+  const { followData, relayData } = parseFollowList(event);
   const pubkey = event.pubkey;
 
   if (config.storage === 'file') {
@@ -96,31 +96,39 @@ async function saveFollowList (event) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
 
-    // Save follow list to file
+    // Save minimal follow list to file
     const filePath = path.join(dataDir, `${pubkey}_follows.json`);
-    fs.writeFileSync(filePath, JSON.stringify({
-      ...followData,
-      originalEvent: event
-    }, null, 2));
-    console.log(`Saved follow list for ${pubkey} (${followData.followsCount} follows) to file`);
+    fs.writeFileSync(filePath, JSON.stringify(followData, null, 2));
+    
+    // Save relays separately if they exist
+    if (relayData) {
+      const relayFilePath = path.join(dataDir, `${pubkey}_relays.json`);
+      fs.writeFileSync(relayFilePath, JSON.stringify(relayData, null, 2));
+    }
+    
+    console.log(`Saved follow list for ${pubkey} (${followData.count} follows) to file`);
   }
   else if (config.storage === 'mongodb') {
     try {
-      // Update or insert the follow list
-      await followsCollection.updateOne(
+      // Update or insert the minimal follow list
+      await followsCollection.replaceOne(
         { pubkey: pubkey },
-        { 
-          $set: {
-            ...followData,
-            originalEvent: event,
-            updatedAt: new Date()
-          }
-        },
+        followData,
         { upsert: true }
       );
-      console.log(`Saved follow list for ${pubkey} (${followData.followsCount} follows) to MongoDB`);
+      
+      // Save relays separately if they exist
+      if (relayData) {
+        await relaysCollection.replaceOne(
+          { pubkey: pubkey },
+          relayData,
+          { upsert: true }
+        );
+      }
+      
+      console.log(`Saved follow list for ${pubkey} (${followData.count} follows) to MongoDB`);
     } catch (error) {
-      console.error(`Error saving follow list to MongoDB:`, error);
+      console.error(`Error saving to MongoDB:`, error);
     }
   }
 }
@@ -142,12 +150,11 @@ function connectToRelay (relayUrl) {
       if (msg[0] === 'EVENT' && msg[2]?.kind === 3) {
         const event = msg[2];
         // Parse and display summary
-        const followData = parseFollowList(event);
+        const { followData, relayData } = parseFollowList(event);
         console.log(`\nReceived follow list from ${relayUrl}:`);
-        console.log(`  Pubkey: ${event.pubkey}`);
-        console.log(`  DID: did:nostr:${event.pubkey}`);
-        console.log(`  Follows: ${followData.followsCount} users`);
-        console.log(`  Relays: ${Object.keys(followData.relays).length} relays`);
+        console.log(`  Pubkey: ${event.pubkey.substring(0, 8)}...`);
+        console.log(`  Follows: ${followData.count} users`);
+        console.log(`  Relays: ${relayData ? Object.keys(relayData.relays).length : 0} relays`);
         console.log(`  Timestamp: ${new Date(event.created_at * 1000).toISOString()}`);
         console.log('-------------------------------------');
 

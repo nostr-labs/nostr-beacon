@@ -394,7 +394,7 @@ async function generateDidDocument (pubkey, profile) {
         // Add follows array with DIDs (limit to first 100 for document size)
         const followsDids = followData.follows
           .slice(0, 100)
-          .map(follow => `did:nostr:${follow.pubkey}`);
+          .map(follow => `did:nostr:${follow}`);
         
         didDoc.follows = followsDids;
         didDoc.followsCount = followData.followsCount || followData.follows.length;

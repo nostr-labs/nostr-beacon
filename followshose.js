@@ -26,15 +26,15 @@ async function connectToMongo () {
 
       const db = mongoClient.db(config.mongoDb);
       followsCollection = db.collection(config.mongoCollection);
-      relaysCollection = db.collection('user_relays'); // Separate collection for relays
+      relaysCollection = db.collection('relays'); // Simple collection for unique relay URLs
 
       // Create indexes for follows collection
       await followsCollection.createIndex({ pubkey: 1 }, { unique: true });
       await followsCollection.createIndex({ 'follows': 1 }); // For reverse lookups
       await followsCollection.createIndex({ created_at: -1 }); // For time-based queries
 
-      // Create index for relays collection
-      await relaysCollection.createIndex({ pubkey: 1 }, { unique: true });
+      // Create unique index for relays collection - just the relay URL
+      await relaysCollection.createIndex({ relay: 1 }, { unique: true });
     } catch (error) {
       console.error('MongoDB connection error:', error);
       process.exit(1);
@@ -64,29 +64,23 @@ function parseFollowList (event) {
 
   followData.count = followData.follows.length;
 
-  // Parse relays separately (if present)
-  let relayData = null;
+  // Extract unique relay URLs (if present)
+  let relayUrls = [];
   if (event.content) {
     try {
       const relayList = JSON.parse(event.content);
-      if (Object.keys(relayList).length > 0) {
-        relayData = {
-          pubkey: event.pubkey,
-          relays: relayList,
-          updated_at: event.created_at
-        };
-      }
+      relayUrls = Object.keys(relayList);
     } catch (e) {
       // Content might not be JSON or might be empty
     }
   }
 
-  return { followData, relayData };
+  return { followData, relayUrls };
 }
 
 // Save follow list function
 async function saveFollowList (event) {
-  const { followData, relayData } = parseFollowList(event);
+  const { followData, relayUrls } = parseFollowList(event);
   const pubkey = event.pubkey;
 
   if (config.storage === 'file') {
@@ -100,12 +94,6 @@ async function saveFollowList (event) {
     const filePath = path.join(dataDir, `${pubkey}_follows.json`);
     fs.writeFileSync(filePath, JSON.stringify(followData, null, 2));
     
-    // Save relays separately if they exist
-    if (relayData) {
-      const relayFilePath = path.join(dataDir, `${pubkey}_relays.json`);
-      fs.writeFileSync(relayFilePath, JSON.stringify(relayData, null, 2));
-    }
-    
     console.log(`Saved follow list for ${pubkey} (${followData.count} follows) to file`);
   }
   else if (config.storage === 'mongodb') {
@@ -117,12 +105,18 @@ async function saveFollowList (event) {
         { upsert: true }
       );
       
-      // Save relays separately if they exist
-      if (relayData) {
-        await relaysCollection.replaceOne(
-          { pubkey: pubkey },
-          relayData,
-          { upsert: true }
+      // Insert unique relay URLs (ignore duplicates)
+      if (relayUrls.length > 0) {
+        const relayDocs = relayUrls.map(url => ({ relay: url }));
+        await relaysCollection.bulkWrite(
+          relayDocs.map(doc => ({
+            updateOne: {
+              filter: { relay: doc.relay },
+              update: { $setOnInsert: doc },
+              upsert: true
+            }
+          })),
+          { ordered: false }
         );
       }
       
@@ -150,11 +144,11 @@ function connectToRelay (relayUrl) {
       if (msg[0] === 'EVENT' && msg[2]?.kind === 3) {
         const event = msg[2];
         // Parse and display summary
-        const { followData, relayData } = parseFollowList(event);
+        const { followData, relayUrls } = parseFollowList(event);
         console.log(`\nReceived follow list from ${relayUrl}:`);
         console.log(`  Pubkey: ${event.pubkey.substring(0, 8)}...`);
         console.log(`  Follows: ${followData.count} users`);
-        console.log(`  Relays: ${relayData ? Object.keys(relayData.relays).length : 0} relays`);
+        console.log(`  Relays: ${relayUrls.length} relays`);
         console.log(`  Timestamp: ${new Date(event.created_at * 1000).toISOString()}`);
         console.log('-------------------------------------');
 

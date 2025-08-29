@@ -10,6 +10,22 @@ const config = {
   pauseBetweenBatches: 2000 // 2 second pause between batches
 };
 
+// Canonicalize relay URLs - add trailing slash only to origins (no path)
+function canonicalizeRelayUrl(url) {
+  try {
+    const parsed = new URL(url);
+    // If the pathname is empty or just "/", ensure it ends with "/"
+    if (parsed.pathname === '' || parsed.pathname === '/') {
+      return `${parsed.protocol}//${parsed.host}/`;
+    }
+    // Otherwise, keep the path as-is
+    return url;
+  } catch (e) {
+    // If URL parsing fails, return as-is
+    return url;
+  }
+}
+
 // Test a single relay
 async function testRelay(relayUrl) {
   const startTime = Date.now();
@@ -127,11 +143,15 @@ async function checkAllRelayHealth() {
         if (result.online) online++;
         else offline++;
         
-        // Update database
+        // Canonicalize URL before storing
+        const canonicalUrl = canonicalizeRelayUrl(result.relay);
+        
+        // Update database using canonical URL
         await relaysCollection.updateOne(
-          { relay: result.relay },
+          { relay: canonicalUrl },
           {
             $set: {
+              relay: canonicalUrl, // Ensure it's stored canonically
               online: result.online,
               lastChecked: result.timestamp,
               responseTime: result.responseTime,
@@ -142,7 +162,8 @@ async function checkAllRelayHealth() {
               checksTotal: 1,
               ...(result.online ? { checksOnline: 1 } : {})
             }
-          }
+          },
+          { upsert: true }
         );
         
         results.push(result);

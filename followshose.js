@@ -64,18 +64,34 @@ function parseFollowList (event) {
 
   followData.count = followData.follows.length;
 
-  // Extract unique relay URLs (if present)
+  // Extract and canonicalize relay URLs (if present)
   let relayUrls = [];
   if (event.content) {
     try {
       const relayList = JSON.parse(event.content);
-      relayUrls = Object.keys(relayList);
+      relayUrls = Object.keys(relayList).map(canonicalizeRelayUrl);
     } catch (e) {
       // Content might not be JSON or might be empty
     }
   }
 
   return { followData, relayUrls };
+}
+
+// Canonicalize relay URLs - add trailing slash only to origins (no path)
+function canonicalizeRelayUrl(url) {
+  try {
+    const parsed = new URL(url);
+    // If the pathname is empty or just "/", ensure it ends with "/"
+    if (parsed.pathname === '' || parsed.pathname === '/') {
+      return `${parsed.protocol}//${parsed.host}/`;
+    }
+    // Otherwise, keep the path as-is
+    return url;
+  } catch (e) {
+    // If URL parsing fails, return as-is
+    return url;
+  }
 }
 
 // Save follow list function

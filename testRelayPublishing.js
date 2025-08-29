@@ -8,7 +8,6 @@ const config = {
   mongoDb: process.env.MONGO_DB || 'nostr',
   timeout: parseInt(process.env.TIMEOUT) || 8000, // 8 second timeout
   batchSize: parseInt(process.env.BATCH_SIZE) || 5, // Test 5 relays at a time
-  topCount: parseInt(process.env.TOP_COUNT) || 50, // Test top 50 relays
   eventKind: parseInt(process.env.EVENT_KIND) || 1 // Default to kind 1 (text note)
 };
 
@@ -169,7 +168,7 @@ async function testTopRelaysPublishing() {
     const db = client.db(config.mongoDb);
     const relaysCollection = db.collection('relays');
     
-    // Get top reliable online relays
+    // Get all reliable online relays
     const topRelays = await relaysCollection
       .find({ 
         online: true,
@@ -177,7 +176,6 @@ async function testTopRelaysPublishing() {
         checksOnline: { $exists: true }
       })
       .sort({ checksOnline: -1, responseTime: 1 })
-      .limit(config.topCount)
       .toArray();
     
     if (topRelays.length === 0) {
@@ -185,7 +183,7 @@ async function testTopRelaysPublishing() {
       return;
     }
     
-    console.log(`\n📤 Testing event publishing to top ${topRelays.length} reliable relays`);
+    console.log(`\n📤 Testing event publishing to all ${topRelays.length} reliable relays`);
     console.log(`⚙️  Configuration: timeout=${config.timeout}ms, batch=${config.batchSize}\n`);
     
     let processed = 0;

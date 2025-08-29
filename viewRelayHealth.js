@@ -30,11 +30,11 @@ async function viewRelayHealth() {
     const fastestRelays = await relaysCollection
       .find({ online: true, responseTime: { $exists: true, $ne: null } })
       .sort({ responseTime: 1 })
-      .limit(10)
+      .limit(100)
       .toArray();
     
     if (fastestRelays.length > 0) {
-      console.log('\n⚡ Top 10 Fastest Relays:');
+      console.log(`\n⚡ Top ${fastestRelays.length} Fastest Relays:`);
       fastestRelays.forEach((relay, i) => {
         console.log(`  ${i+1}. ${relay.relay} - ${relay.responseTime}ms`);
       });
@@ -47,11 +47,11 @@ async function viewRelayHealth() {
         checksOnline: { $exists: true }
       })
       .sort({ checksOnline: -1 })
-      .limit(10)
+      .limit(100)
       .toArray();
     
     if (reliableRelays.length > 0 && reliableRelays[0].checksTotal > 1) {
-      console.log('\n🏆 Most Reliable Relays:');
+      console.log(`\n🏆 Top ${reliableRelays.length} Most Reliable Relays:`);
       reliableRelays.forEach((relay, i) => {
         const uptime = Math.round((relay.checksOnline / relay.checksTotal) * 100);
         console.log(`  ${i+1}. ${relay.relay} - ${uptime}% (${relay.checksOnline}/${relay.checksTotal})`);

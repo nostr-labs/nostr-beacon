@@ -74,6 +74,85 @@ async function viewRelayHealth() {
       });
     }
     
+    // Get relays that accept events (from publishing tests)
+    const acceptingRelays = await relaysCollection
+      .find({ 
+        acceptsEvents: true,
+        online: true,
+        publishResponseTime: { $exists: true }
+      })
+      .sort({ publishResponseTime: 1 })
+      .limit(100)
+      .toArray();
+    
+    if (acceptingRelays.length > 0) {
+      console.log(`\n✅ Relays That Accept Events (${acceptingRelays.length}):`);
+      acceptingRelays.forEach((relay, i) => {
+        const time = relay.publishResponseTime ? `${relay.publishResponseTime}ms` : '';
+        console.log(`  ${i+1}. ${relay.relay} - ${time}`);
+      });
+    }
+    
+    // Get relays with restrictions
+    const restrictedRelays = await relaysCollection
+      .find({
+        $or: [
+          { requiresPayment: true },
+          { requiresAuth: true }
+        ]
+      })
+      .toArray();
+    
+    if (restrictedRelays.length > 0) {
+      const paywallRelays = restrictedRelays.filter(r => r.requiresPayment);
+      const authRelays = restrictedRelays.filter(r => r.requiresAuth);
+      
+      if (paywallRelays.length > 0) {
+        console.log(`\n💰 Paywall Relays (${paywallRelays.length}):`);
+        paywallRelays.forEach((relay, i) => {
+          const notice = relay.lastPublishNotice || 'Payment required';
+          console.log(`  ${i+1}. ${relay.relay} - ${notice}`);
+        });
+      }
+      
+      if (authRelays.length > 0) {
+        console.log(`\n🔐 Auth Required Relays (${authRelays.length}):`);
+        authRelays.forEach((relay, i) => {
+          const notice = relay.lastPublishNotice || 'Authentication required';
+          console.log(`  ${i+1}. ${relay.relay} - ${notice}`);
+        });
+      }
+    }
+    
+    // Publishing test statistics
+    const publishStats = await relaysCollection.aggregate([
+      {
+        $match: { 
+          publishTestsTotal: { $exists: true, $gt: 0 }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalTested: { $sum: 1 },
+          accepting: { $sum: { $cond: ["$acceptsEvents", 1, 0] } },
+          paywall: { $sum: { $cond: ["$requiresPayment", 1, 0] } },
+          authRequired: { $sum: { $cond: ["$requiresAuth", 1, 0] } }
+        }
+      }
+    ]).toArray();
+    
+    if (publishStats.length > 0) {
+      const stats = publishStats[0];
+      console.log('\n📤 Publishing Test Summary:');
+      console.log(`  Tested: ${stats.totalTested} relays`);
+      console.log(`  Accepting: ${stats.accepting} (${Math.round((stats.accepting/stats.totalTested)*100)}%)`);
+      console.log(`  Paywall: ${stats.paywall} (${Math.round((stats.paywall/stats.totalTested)*100)}%)`);
+      console.log(`  Auth Required: ${stats.authRequired} (${Math.round((stats.authRequired/stats.totalTested)*100)}%)`);
+      const rejected = stats.totalTested - stats.accepting - stats.paywall - stats.authRequired;
+      console.log(`  Rejected/Restricted: ${rejected} (${Math.round((rejected/stats.totalTested)*100)}%)`);
+    }
+    
     // Recent checks
     const recentChecks = await relaysCollection
       .find({ lastChecked: { $exists: true } })

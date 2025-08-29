@@ -25,60 +25,62 @@ async function countUniqueUsers() {
     console.log(`\n🔍 Calculating total unique users (this may take a moment)...`);
     
     const allUniqueUsersPipeline = [
-      // First get all pubkeys that have follow lists
+      // First get all pubkeys that have follow lists and their follows
       {
         $group: {
           _id: null,
           usersWithLists: { $addToSet: "$pubkey" },
-          allFollows: { $push: "$follows" }
+          allFollows: { 
+            $push: {
+              $cond: [
+                { $and: [{ $ne: ["$follows", null] }, { $isArray: "$follows" }] },
+                "$follows",
+                []
+              ]
+            }
+          }
         }
       },
-      // Unwind the follows array
+      // Flatten all follows arrays
       {
         $project: {
           usersWithLists: 1,
-          allFollows: {
+          allFollowedUsers: {
             $reduce: {
               input: "$allFollows",
               initialValue: [],
-              in: { $concatArrays: ["$$value", "$$this"] }
+              in: {
+                $cond: [
+                  { $isArray: "$$this" },
+                  { $concatArrays: ["$$value", "$$this"] },
+                  "$$value"
+                ]
+              }
             }
           }
         }
       },
-      // Extract followed pubkeys
+      // Get unique followed users and combine with users who have lists
       {
         $project: {
           usersWithLists: 1,
-          followedUsers: {
-            $map: {
-              input: "$allFollows",
-              as: "follow",
-              in: "$$follow.pubkey"
-            }
-          }
+          uniqueFollowedUsers: { $setUnion: ["$allFollowedUsers", []] },
+          usersWithListsCount: { $size: "$usersWithLists" }
         }
       },
-      // Combine all unique pubkeys
+      // Calculate final counts
       {
         $project: {
-          allUniquePubkeys: {
-            $setUnion: ["$usersWithLists", "$followedUsers"]
-          },
-          usersWithListsCount: { $size: "$usersWithLists" },
-          followedUsersSet: { $setUnion: ["$followedUsers", []] }
+          usersWithListsCount: 1,
+          uniqueFollowedUsersCount: { $size: "$uniqueFollowedUsers" },
+          allUniqueUsers: { $setUnion: ["$usersWithLists", "$uniqueFollowedUsers"] }
         }
       },
       {
         $project: {
-          totalUniqueUsers: { $size: "$allUniquePubkeys" },
           usersWithLists: "$usersWithListsCount",
-          uniqueFollowedUsers: { $size: "$followedUsersSet" },
-          usersOnlyFollowed: {
-            $size: {
-              $setDifference: ["$followedUsersSet", "$allUniquePubkeys"]
-            }
-          }
+          uniqueFollowedUsers: "$uniqueFollowedUsersCount", 
+          totalUniqueUsers: { $size: "$allUniqueUsers" }
         }
       }
     ];
@@ -91,9 +93,9 @@ async function countUniqueUsers() {
       const u = uniqueUsersResult[0];
       console.log(`\n👥 Total Unique Users Breakdown:`);
       console.log(`   Total unique users (all): ${u.totalUniqueUsers.toLocaleString()}`);
-      console.log(`   Users with follow lists: ${totalUsers.toLocaleString()}`);
+      console.log(`   Users with follow lists: ${u.usersWithLists.toLocaleString()}`);
       console.log(`   Unique followed users: ${u.uniqueFollowedUsers.toLocaleString()}`);
-      const onlyFollowed = u.totalUniqueUsers - totalUsers;
+      const onlyFollowed = u.totalUniqueUsers - u.usersWithLists;
       console.log(`   Users only being followed (no list): ${onlyFollowed.toLocaleString()}`);
     }
     
@@ -103,15 +105,10 @@ async function countUniqueUsers() {
         $group: {
           _id: null,
           totalUsers: { $sum: 1 },
-          avgFollowsCount: { $avg: "$followsCount" },
-          maxFollowsCount: { $max: "$followsCount" },
-          minFollowsCount: { $min: "$followsCount" },
-          totalFollows: { $sum: "$followsCount" },
-          usersWithRelays: {
-            $sum: {
-              $cond: [{ $gt: [{ $size: { $objectToArray: "$relays" } }, 0] }, 1, 0]
-            }
-          }
+          avgFollowsCount: { $avg: "$count" },
+          maxFollowsCount: { $max: "$count" },
+          minFollowsCount: { $min: "$count" },
+          totalFollows: { $sum: "$count" }
         }
       }
     ];
@@ -125,19 +122,18 @@ async function countUniqueUsers() {
       console.log(`   Maximum follows: ${s.maxFollowsCount}`);
       console.log(`   Minimum follows: ${s.minFollowsCount}`);
       console.log(`   Total follow relationships: ${s.totalFollows.toLocaleString()}`);
-      console.log(`   Users with relay preferences: ${s.usersWithRelays.toLocaleString()}`);
     }
     
     // Get distribution of follow counts (bucketed)
     const distributionPipeline = [
       {
         $bucket: {
-          groupBy: "$followsCount",
+          groupBy: "$count",
           boundaries: [0, 10, 50, 100, 500, 1000, 5000, 10000],
           default: "10000+",
           output: {
             count: { $sum: 1 },
-            avgFollows: { $avg: "$followsCount" }
+            avgFollows: { $avg: "$count" }
           }
         }
       },
@@ -159,7 +155,7 @@ async function countUniqueUsers() {
       { $unwind: "$follows" },
       {
         $group: {
-          _id: "$follows.pubkey",
+          _id: "$follows", // follows is now just a string (pubkey)
           followerCount: { $sum: 1 }
         }
       },
@@ -178,24 +174,23 @@ async function countUniqueUsers() {
     
     // Get sample of recent additions
     const recentPipeline = [
-      { $sort: { updatedAt: -1 } },
+      { $sort: { created_at: -1 } },
       { $limit: 5 },
       {
         $project: {
           pubkey: 1,
-          followsCount: 1,
-          updatedAt: 1,
-          relayCount: { $size: { $objectToArray: "$relays" } }
+          count: 1,
+          created_at: 1
         }
       }
     ];
     
     const recent = await collection.aggregate(recentPipeline).toArray();
     
-    console.log(`\n🕐 5 Most recently updated users:`);
+    console.log(`\n🕐 5 Most recent users:`);
     recent.forEach(user => {
-      const dateStr = user.updatedAt ? new Date(user.updatedAt).toISOString() : 'N/A';
-      console.log(`   ${user.pubkey.substring(0, 8)}... - ${user.followsCount} follows, ${user.relayCount} relays (${dateStr})`);
+      const dateStr = new Date(user.created_at * 1000).toISOString();
+      console.log(`   ${user.pubkey.substring(0, 8)}... - ${user.count} follows (${dateStr})`);
     });
     
     // Database size estimate

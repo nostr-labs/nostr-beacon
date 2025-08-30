@@ -232,6 +232,11 @@ async function generateDidDocument (pubkey, profile) {
     try {
       const content = JSON.parse(profile.content);
       
+      // Add alsoKnownAs at top level if present in profile
+      if (content.alsoKnownAs && Array.isArray(content.alsoKnownAs) && content.alsoKnownAs.length > 0) {
+        didDoc.alsoKnownAs = content.alsoKnownAs;
+      }
+      
       // Add profile section with parsed content
       didDoc.profile = {};
       
@@ -264,6 +269,11 @@ async function generateDidDocument (pubkey, profile) {
       }
       if (content.lud06) {
         didDoc.profile.lud06 = content.lud06;
+      }
+      
+      // Include alsoKnownAs in profile section as well for backward compatibility
+      if (content.alsoKnownAs && Array.isArray(content.alsoKnownAs) && content.alsoKnownAs.length > 0) {
+        didDoc.profile.alsoKnownAs = content.alsoKnownAs;
       }
 
       // Add created_at and updated_at timestamps

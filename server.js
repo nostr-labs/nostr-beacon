@@ -1323,14 +1323,24 @@ h1::after {
               width: 40px;
               height: 40px;
               border-radius: 50%;
-              background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
+              background-color: var(--color-border);
               display: flex;
               align-items: center;
               justify-content: center;
               margin-right: 12px;
               flex-shrink: 0;
-              font-weight: bold;
-              color: white;
+              font-weight: 600;
+              color: var(--color-text-secondary);
+              font-size: 0.9em;
+              overflow: hidden;
+              position: relative;
+            }
+            
+            .follow-avatar img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              border-radius: 50%;
             }
             
             .follow-info {
@@ -1474,36 +1484,27 @@ h1::after {
               <h2>Following <span class="follows-count">${followsData.follows.length}</span></h2>
               <div class="follows-grid">
                 ${followProfiles.map((follow) => {
-                  const shortPubkey = follow.pubkey.substring(0, 8) + '...' + follow.pubkey.substring(follow.pubkey.length - 4);
-                  const displayName = follow.name || 'Nostr User';
+                  const shortPubkey = follow.pubkey.substring(0, 12) + '...' + follow.pubkey.substring(follow.pubkey.length - 4);
+                  const displayName = follow.name || shortPubkey;
                   const avatarLetter = (follow.name || follow.pubkey).charAt(0).toUpperCase();
                   const bgColor = stringToColor(follow.pubkey);
                   
-                  if (follow.picture) {
-                    return `
-                      <a href="/profile/${follow.pubkey}" class="follow-card">
-                        <div class="follow-avatar" style="background-color: ${bgColor}; padding: 0;">
-                          <img src="${follow.picture}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" 
-                               onerror="this.style.display='none'; this.parentNode.innerHTML = '<span style=\\"font-weight: bold; color: white;\\">${avatarLetter}</span>';"
-                               loading="lazy">
-                        </div>
-                        <div class="follow-info">
-                          <div class="follow-pubkey" style="${follow.name ? 'font-family: inherit; font-weight: 500;' : ''}">${displayName}</div>
-                          <div class="follow-label">${shortPubkey}</div>
-                        </div>
-                      </a>
-                    `;
-                  } else {
-                    return `
-                      <a href="/profile/${follow.pubkey}" class="follow-card">
-                        <div class="follow-avatar" style="background: ${follow.name ? bgColor : 'linear-gradient(135deg, var(--color-primary-light), var(--color-primary))'};">${avatarLetter}</div>
-                        <div class="follow-info">
-                          <div class="follow-pubkey" style="${follow.name ? 'font-family: inherit; font-weight: 500;' : ''}">${displayName}</div>
-                          <div class="follow-label">${follow.name ? shortPubkey : 'Nostr User'}</div>
-                        </div>
-                      </a>
-                    `;
-                  }
+                  return `
+                    <a href="/profile/${follow.pubkey}" class="follow-card">
+                      <div class="follow-avatar" style="background-color: ${follow.picture ? 'transparent' : bgColor};">
+                        ${follow.picture ? 
+                          `<img src="${follow.picture}" 
+                                onerror="this.style.display='none'; this.parentNode.style.backgroundColor='${bgColor}'; this.parentNode.innerHTML='<span>${avatarLetter}</span>';"
+                                loading="lazy">` 
+                          : `<span>${avatarLetter}</span>`
+                        }
+                      </div>
+                      <div class="follow-info">
+                        <div class="follow-pubkey" style="${follow.name ? 'font-family: inherit; font-weight: 500;' : 'font-family: monospace; font-size: 0.85em;'}">${displayName}</div>
+                        ${follow.name ? `<div class="follow-label">${shortPubkey}</div>` : ''}
+                      </div>
+                    </a>
+                  `;
                 }).join('')}
               </div>
               ${followsData.follows.length > 50 ? `

@@ -942,6 +942,16 @@ h1::after {
   // Profile detail page
   app.get('/profile/:pubkey', async (req, res) => {
     const profile = await getProfile(req.params.pubkey);
+    
+    // Fetch follows data if available
+    let followsData = null;
+    if (config.storage === 'mongodb' && followsCollection) {
+      try {
+        followsData = await followsCollection.findOne({ pubkey: req.params.pubkey });
+      } catch (error) {
+        console.error('Error fetching follows:', error);
+      }
+    }
 
     if (!profile) {
       return res.status(404).send(`
@@ -1250,6 +1260,76 @@ h1::after {
               transform: translateY(-2px);
             }
             
+            .follows-grid {
+              display: grid;
+              grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+              gap: 15px;
+              margin-top: 15px;
+            }
+            
+            .follow-card {
+              display: flex;
+              align-items: center;
+              padding: 12px;
+              background-color: var(--color-code-bg);
+              border-radius: 8px;
+              text-decoration: none;
+              color: inherit;
+              transition: var(--transition);
+              border: 1px solid var(--color-border);
+            }
+            
+            .follow-card:hover {
+              background-color: var(--color-primary-subtle);
+              transform: translateX(4px);
+              border-color: var(--color-primary-light);
+            }
+            
+            .follow-avatar {
+              width: 40px;
+              height: 40px;
+              border-radius: 50%;
+              background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary));
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin-right: 12px;
+              flex-shrink: 0;
+              font-weight: bold;
+              color: white;
+            }
+            
+            .follow-info {
+              flex: 1;
+              overflow: hidden;
+            }
+            
+            .follow-pubkey {
+              font-family: monospace;
+              font-size: 0.85em;
+              color: var(--color-text);
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+            
+            .follow-label {
+              font-size: 0.75em;
+              color: var(--color-text-secondary);
+              margin-top: 2px;
+            }
+            
+            .follows-count {
+              display: inline-block;
+              background-color: var(--color-primary-subtle);
+              color: var(--color-primary);
+              padding: 4px 12px;
+              border-radius: 20px;
+              font-size: 0.9em;
+              font-weight: 500;
+              margin-left: 10px;
+            }
+            
             @media (max-width: 768px) {
               .profile-header {
                 flex-direction: column;
@@ -1262,6 +1342,10 @@ h1::after {
               }
               
               .metadata {
+                grid-template-columns: 1fr;
+              }
+              
+              .follows-grid {
                 grid-template-columns: 1fr;
               }
             }
@@ -1350,6 +1434,32 @@ h1::after {
                 </div>
               </div>
             </div>
+            
+            ${followsData && followsData.follows && followsData.follows.length > 0 ? `
+            <div class="profile-section">
+              <h2>Following <span class="follows-count">${followsData.follows.length}</span></h2>
+              <div class="follows-grid">
+                ${followsData.follows.slice(0, 50).map((followPubkey, index) => {
+                  const shortPubkey = followPubkey.substring(0, 8) + '...' + followPubkey.substring(followPubkey.length - 4);
+                  const avatarLetter = followPubkey.charAt(0).toUpperCase();
+                  return `
+                    <a href="/profile/${followPubkey}" class="follow-card">
+                      <div class="follow-avatar">${avatarLetter}</div>
+                      <div class="follow-info">
+                        <div class="follow-pubkey">${shortPubkey}</div>
+                        <div class="follow-label">Nostr User</div>
+                      </div>
+                    </a>
+                  `;
+                }).join('')}
+              </div>
+              ${followsData.follows.length > 50 ? `
+                <p style="margin-top: 15px; color: var(--color-text-secondary); font-size: 0.9em;">
+                  Showing 50 of ${followsData.follows.length} follows
+                </p>
+              ` : ''}
+            </div>
+            ` : ''}
             
             <div class="profile-section">
               <h2>DID Document</h2>

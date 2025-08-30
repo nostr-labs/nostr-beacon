@@ -1050,6 +1050,7 @@ h1::after {
     const website = content.website || '';
     const nip05 = content.nip05 || '';
     const storage = content.storage || content.Storage || '';
+    const alsoKnownAs = content.alsoKnownAs || [];
 
     // Fix for date display
     let createdText = 'Unknown date';
@@ -1453,6 +1454,16 @@ h1::after {
         }" target="_blank">${typeof storage === 'string' ? storage :
           (Array.isArray(storage) && storage.length > 0 && typeof storage[0] === 'string' ? storage[0] : JSON.stringify(storage))
         }</a></div>
+                </div>` : ''}
+                
+                ${alsoKnownAs && alsoKnownAs.length > 0 ? `
+                <div class="metadata-item">
+                  <div class="metadata-label">Also Known As</div>
+                  <div class="metadata-value">
+                    ${alsoKnownAs.map(aka => 
+                      `<a href="${aka.startsWith('http') ? aka : '#'}" target="_blank">${aka}</a>`
+                    ).join('<br>')}
+                  </div>
                 </div>` : ''}
                 
                 ${testnetTaprootAddressDisplay ? `

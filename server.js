@@ -945,9 +945,43 @@ h1::after {
     
     // Fetch follows data if available
     let followsData = null;
+    let followProfiles = [];
     if (config.storage === 'mongodb' && followsCollection) {
       try {
         followsData = await followsCollection.findOne({ pubkey: req.params.pubkey });
+        
+        // Fetch profile data for first 50 follows
+        if (followsData && followsData.follows) {
+          const followsToFetch = followsData.follows.slice(0, 50);
+          
+          // Batch fetch profiles from MongoDB
+          const profiles = await beaconCollection.find({
+            pubkey: { $in: followsToFetch }
+          }).toArray();
+          
+          // Create a map for quick lookup
+          const profileMap = {};
+          profiles.forEach(p => {
+            if (p.content) {
+              try {
+                const content = JSON.parse(p.content);
+                profileMap[p.pubkey] = {
+                  name: content.name || content.display_name,
+                  picture: content.picture && isValidImageUrl(content.picture) ? content.picture : null
+                };
+              } catch (e) {
+                // Skip invalid content
+              }
+            }
+          });
+          
+          // Build followProfiles array maintaining order
+          followProfiles = followsToFetch.map(pubkey => ({
+            pubkey,
+            name: profileMap[pubkey]?.name || null,
+            picture: profileMap[pubkey]?.picture || null
+          }));
+        }
       } catch (error) {
         console.error('Error fetching follows:', error);
       }
@@ -1439,18 +1473,37 @@ h1::after {
             <div class="profile-section">
               <h2>Following <span class="follows-count">${followsData.follows.length}</span></h2>
               <div class="follows-grid">
-                ${followsData.follows.slice(0, 50).map((followPubkey, index) => {
-                  const shortPubkey = followPubkey.substring(0, 8) + '...' + followPubkey.substring(followPubkey.length - 4);
-                  const avatarLetter = followPubkey.charAt(0).toUpperCase();
-                  return `
-                    <a href="/profile/${followPubkey}" class="follow-card">
-                      <div class="follow-avatar">${avatarLetter}</div>
-                      <div class="follow-info">
-                        <div class="follow-pubkey">${shortPubkey}</div>
-                        <div class="follow-label">Nostr User</div>
-                      </div>
-                    </a>
-                  `;
+                ${followProfiles.map((follow) => {
+                  const shortPubkey = follow.pubkey.substring(0, 8) + '...' + follow.pubkey.substring(follow.pubkey.length - 4);
+                  const displayName = follow.name || 'Nostr User';
+                  const avatarLetter = (follow.name || follow.pubkey).charAt(0).toUpperCase();
+                  const bgColor = stringToColor(follow.pubkey);
+                  
+                  if (follow.picture) {
+                    return `
+                      <a href="/profile/${follow.pubkey}" class="follow-card">
+                        <div class="follow-avatar" style="background-color: ${bgColor}; padding: 0;">
+                          <img src="${follow.picture}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" 
+                               onerror="this.style.display='none'; this.parentNode.innerHTML = '<span style=\\"font-weight: bold; color: white;\\">${avatarLetter}</span>';"
+                               loading="lazy">
+                        </div>
+                        <div class="follow-info">
+                          <div class="follow-pubkey" style="${follow.name ? 'font-family: inherit; font-weight: 500;' : ''}">${displayName}</div>
+                          <div class="follow-label">${shortPubkey}</div>
+                        </div>
+                      </a>
+                    `;
+                  } else {
+                    return `
+                      <a href="/profile/${follow.pubkey}" class="follow-card">
+                        <div class="follow-avatar" style="background: ${follow.name ? bgColor : 'linear-gradient(135deg, var(--color-primary-light), var(--color-primary))'};">${avatarLetter}</div>
+                        <div class="follow-info">
+                          <div class="follow-pubkey" style="${follow.name ? 'font-family: inherit; font-weight: 500;' : ''}">${displayName}</div>
+                          <div class="follow-label">${follow.name ? shortPubkey : 'Nostr User'}</div>
+                        </div>
+                      </a>
+                    `;
+                  }
                 }).join('')}
               </div>
               ${followsData.follows.length > 50 ? `

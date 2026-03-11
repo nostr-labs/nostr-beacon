@@ -11,7 +11,7 @@ const config = {
   relays: process.env.RELAYS ? process.env.RELAYS.split(',') : [
     'wss://relay.damus.io',
     'wss://nos.lol', 
-    'wss://ditto.pub/relay',
+    'wss://relay.ditto.pub',
     'wss://relay.nostr.bg',
     'wss://nostr.wine',
     'wss://relay.snort.social'

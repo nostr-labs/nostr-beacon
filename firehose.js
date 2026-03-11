@@ -9,7 +9,7 @@ const config = {
   mongoUrl: process.env.MONGO_URL || 'mongodb://localhost:27017',
   mongoDb: process.env.MONGO_DB || 'nostr',
   mongoCollection: process.env.MONGO_COLLECTION || 'beacon',
-  relays: process.env.RELAYS ? process.env.RELAYS.split(',') : ['wss://relay.damus.io', 'wss://nos.lol', 'wss://ditto.pub/relay']
+  relays: process.env.RELAYS ? process.env.RELAYS.split(',') : ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.ditto.pub']
 };
 
 // MongoDB setup
